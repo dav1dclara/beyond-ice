@@ -1,30 +1,24 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div>
-  <HelloWorld msg="Vite + Vue" />
+  <CesiumViewer />
 </template>
 
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+<script setup>
+import CesiumViewer from "./components/CesiumViewer.vue";
+
+// Hot module replacement for development
+// This will ensure the page is fully (and not just partially) reloaded when the src/App.vue file is changed.
+
+import.meta.hot?.on("vite:beforeUpdate", (e) => {
+  if (e.updates.some(({ path }) => path === "/src/App.vue"))
+    location.reload();
+});
+</script>
+
+<style>
+/* Reset default browser styles */
+body, html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 </style>
