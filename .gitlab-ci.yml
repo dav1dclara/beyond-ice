@@ -16,7 +16,8 @@ build_project:
     - test -s .env && echo ".env file has content" || echo ".env file is EMPTY"
     - echo ""
     - npm install
-    - npm run build
+    - echo "Building with VITE_MAPBOX_TOKEN environment variable..."
+    - VITE_MAPBOX_TOKEN="$VITE_MAPBOX_TOKEN" npm run build
     - echo ""
     - echo "=== Checking built JavaScript bundle for token ==="
     - |
@@ -37,8 +38,22 @@ build_project:
           echo "Checking for VITE_MAPBOX_TOKEN string (should NOT be present if replaced):"
           if grep -q "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null; then
             echo "✗ VITE_MAPBOX_TOKEN string still present - token was NOT replaced!"
+            echo "  Showing context where it appears:"
+            grep -o ".{0,50}VITE_MAPBOX_TOKEN.{0,50}" "$JS_FILE" | head -3
           else
             echo "✓ VITE_MAPBOX_TOKEN string not found (good - means it was replaced)"
+          fi
+          echo ""
+          echo "Checking for import.meta.env in the bundle:"
+          if grep -q "import\.meta\.env" "$JS_FILE" 2>/dev/null; then
+            echo "✗ import.meta.env found - checking if VITE_MAPBOX_TOKEN is referenced:"
+            if grep -q "import\.meta\.env.*VITE_MAPBOX_TOKEN\|VITE_MAPBOX_TOKEN.*import\.meta\.env" "$JS_FILE" 2>/dev/null; then
+              echo "✗✗ import.meta.env.VITE_MAPBOX_TOKEN is STILL in the code - not replaced!"
+            else
+              echo "  (import.meta.env found but not for VITE_MAPBOX_TOKEN)"
+            fi
+          else
+            echo "✓ No import.meta.env references found"
           fi
           echo ""
           echo "Checking for undefined token:"
