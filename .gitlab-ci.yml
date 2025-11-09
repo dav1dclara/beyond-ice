@@ -17,6 +17,42 @@ build_project:
     - echo ""
     - npm install
     - npm run build
+    - echo ""
+    - echo "=== Checking built JavaScript bundle for token ==="
+    - |
+      if [ -d dist/assets ]; then
+        JS_FILE=$(find dist/assets -name "index-*.js" | head -1)
+        if [ -n "$JS_FILE" ]; then
+          echo "Found built JS file: $JS_FILE"
+          echo ""
+          echo "Checking for token (pk.ey prefix):"
+          if grep -q "pk\.ey" "$JS_FILE" 2>/dev/null; then
+            echo "✓ Token found in built bundle!"
+            grep -o "pk\.ey[^\"]*" "$JS_FILE" | head -c 20
+            echo "..."
+          else
+            echo "✗ Token NOT found in built bundle"
+          fi
+          echo ""
+          echo "Checking for VITE_MAPBOX_TOKEN string (should NOT be present if replaced):"
+          if grep -q "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null; then
+            echo "✗ VITE_MAPBOX_TOKEN string still present - token was NOT replaced!"
+          else
+            echo "✓ VITE_MAPBOX_TOKEN string not found (good - means it was replaced)"
+          fi
+          echo ""
+          echo "Checking for undefined token:"
+          if grep -q 'MAPBOX_TOKEN.*undefined\|undefined.*MAPBOX_TOKEN\|"undefined".*mapbox' "$JS_FILE" 2>/dev/null; then
+            echo "✗ Found undefined in context of Mapbox token!"
+          else
+            echo "✓ No undefined found in Mapbox context"
+          fi
+        else
+          echo "ERROR: Could not find built JS file in dist/assets/"
+        fi
+      else
+        echo "ERROR: dist/assets/ directory not found"
+      fi
 
 deploy_project:
   stage: deploy
