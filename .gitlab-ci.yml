@@ -14,7 +14,6 @@ build_project:
     - test -f .env && echo ".env file exists" || echo ".env file NOT found"
     - test -f .env.production && echo ".env.production file exists" || echo ".env.production file NOT found"
     - test -s .env && echo ".env file has content" || echo ".env file is EMPTY"
-    - echo ".env file length: $(wc -c < .env) bytes"
     - echo ""
     - npm install
     - npm run build
