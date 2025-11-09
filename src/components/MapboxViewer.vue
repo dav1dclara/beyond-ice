@@ -19,6 +19,12 @@ onMounted(() => {
     return;
   }
 
+  console.log("MapboxViewer - MAPBOX_TOKEN check:");
+  console.log("  Value:", MAPBOX_TOKEN);
+  console.log("  Type:", typeof MAPBOX_TOKEN);
+  console.log("  Is truthy?", !!MAPBOX_TOKEN);
+  console.log("  Length:", MAPBOX_TOKEN ? MAPBOX_TOKEN.length : 0);
+  
   if (!MAPBOX_TOKEN) {
     console.error("Mapbox access token is missing. Please set VITE_MAPBOX_TOKEN in your .env file or GitLab CI/CD variables");
     console.error("Current token value:", MAPBOX_TOKEN);
