@@ -8,8 +8,8 @@ build_project:
   script:
     - echo "Checking environment variables..."
     - 'if [ -z "$VITE_MAPBOX_TOKEN" ]; then echo "ERROR: VITE_MAPBOX_TOKEN is not set!"; exit 1; else echo "VITE_MAPBOX_TOKEN is set"; fi'
-    - printf "VITE_MAPBOX_TOKEN=%s" "$VITE_MAPBOX_TOKEN" > .env.production
-    - printf "VITE_MAPBOX_TOKEN=%s" "$VITE_MAPBOX_TOKEN" > .env
+    - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env.production
+    - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env
     - echo "Verifying .env files were created:"
     - test -f .env && echo ".env file exists" || echo ".env file NOT found"
     - test -f .env.production && echo ".env.production file exists" || echo ".env.production file NOT found"
