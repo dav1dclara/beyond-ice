@@ -9,6 +9,9 @@ build_project:
     - echo "Checking environment variables..."
     - 'if [ -z "$VITE_MAPBOX_TOKEN" ]; then echo "ERROR: VITE_MAPBOX_TOKEN is not set!"; exit 1; else echo "VITE_MAPBOX_TOKEN is set"; fi'
     - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env
+    - echo "Verifying .env file was created:"
+    - cat .env | head -c 50
+    - echo ""
     - npm install
     - npm run build
 
