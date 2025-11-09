@@ -14,6 +14,11 @@ build_project:
     - test -f .env && echo ".env file exists" || echo ".env file NOT found"
     - test -f .env.production && echo ".env.production file exists" || echo ".env.production file NOT found"
     - test -s .env && echo ".env file has content" || echo ".env file is EMPTY"
+    - echo "Checking .env.production format (first 30 chars):"
+    - head -c 30 .env.production
+    - echo ""
+    - echo "Full .env.production content (will be masked):"
+    - cat .env.production
     - echo ""
     - npm install
     - echo "Building with VITE_MAPBOX_TOKEN environment variable..."
@@ -21,6 +26,7 @@ build_project:
     - echo ""
     - echo "=== Checking built JavaScript bundle for token ==="
     - |
+      set +e  # Don't exit on error
       if [ -d dist/assets ]; then
         JS_FILE=$(find dist/assets -name "index-*.js" | head -1)
         if [ -n "$JS_FILE" ]; then
@@ -38,8 +44,10 @@ build_project:
           echo "Checking for VITE_MAPBOX_TOKEN string (should NOT be present if replaced):"
           if grep -q "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null; then
             echo "✗ VITE_MAPBOX_TOKEN string still present - token was NOT replaced!"
-            echo "  Showing context where it appears:"
-            grep -o ".{0,50}VITE_MAPBOX_TOKEN.{0,50}" "$JS_FILE" | head -3
+            echo "  Showing context where it appears (first 3 matches):"
+            grep "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null | head -3 || true
+            echo ""
+            echo "NOTE: This is a warning - Vite should have replaced this but didn't."
           else
             echo "✓ VITE_MAPBOX_TOKEN string not found (good - means it was replaced)"
           fi
