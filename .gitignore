@@ -21,8 +21,8 @@ dist-ssr
 /data/
 !/public/data/
 
-# Test/experimental files
-experiments/
+# # Test/experimental files
+# experiments/
 
 # Editor directories and files
 .vscode/*
