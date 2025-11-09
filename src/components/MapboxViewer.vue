@@ -14,24 +14,44 @@ const mapContainer = ref(null);
 let map = null;
 
 onMounted(() => {
-  if (!mapContainer.value) return;
-
-  if (!MAPBOX_TOKEN) {
-    console.error("Mapbox access token is missing. Please set VITE_MAPBOX_TOKEN in your .env file");
+  if (!mapContainer.value) {
+    console.error("MapboxViewer: Container element not found");
     return;
   }
 
-  // Initialize Mapbox map
-  map = new mapboxgl.Map({
-    container: mapContainer.value,
-    style: "mapbox://styles/mapbox/streets-v12", // Default style
-    center: [8.2275, 46.8182], // Center of Switzerland (similar to old Cesium view)
-    zoom: 7,
-    accessToken: MAPBOX_TOKEN,
-  });
+  if (!MAPBOX_TOKEN) {
+    console.error("Mapbox access token is missing. Please set VITE_MAPBOX_TOKEN in your .env file or GitLab CI/CD variables");
+    console.error("Current token value:", MAPBOX_TOKEN);
+    return;
+  }
 
-  // Add navigation controls
-  map.addControl(new mapboxgl.NavigationControl());
+  console.log("MapboxViewer: Initializing map with token:", MAPBOX_TOKEN.substring(0, 10) + "...");
+
+  try {
+    // Initialize Mapbox map
+    map = new mapboxgl.Map({
+      container: mapContainer.value,
+      style: "mapbox://styles/mapbox/streets-v12", // Default style
+      center: [8.2275, 46.8182], // Center of Switzerland (similar to old Cesium view)
+      zoom: 7,
+      accessToken: MAPBOX_TOKEN,
+    });
+
+    // Add navigation controls
+    map.addControl(new mapboxgl.NavigationControl());
+
+    // Debug: Log when map loads
+    map.on("load", () => {
+      console.log("MapboxViewer: Map loaded successfully");
+    });
+
+    // Debug: Log any errors
+    map.on("error", (e) => {
+      console.error("MapboxViewer: Map error:", e);
+    });
+  } catch (error) {
+    console.error("MapboxViewer: Failed to initialize map:", error);
+  }
 });
 
 onBeforeUnmount(() => {
