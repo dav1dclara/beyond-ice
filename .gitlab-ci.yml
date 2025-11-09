@@ -6,76 +6,8 @@ build_project:
   stage: build
   image: node:20
   script:
-    - echo "Checking environment variables..."
-    - 'if [ -z "$VITE_MAPBOX_TOKEN" ]; then echo "ERROR: VITE_MAPBOX_TOKEN is not set!"; exit 1; else echo "VITE_MAPBOX_TOKEN is set"; fi'
-    - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env.production
-    - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env
-    - echo "Verifying .env files were created:"
-    - test -f .env && echo ".env file exists" || echo ".env file NOT found"
-    - test -f .env.production && echo ".env.production file exists" || echo ".env.production file NOT found"
-    - test -s .env && echo ".env file has content" || echo ".env file is EMPTY"
-    - echo "Checking .env.production format (first 30 chars):"
-    - head -c 30 .env.production
-    - echo ""
-    - echo "Full .env.production content (will be masked):"
-    - cat .env.production
-    - echo ""
     - npm install
-    - echo "Building with VITE_MAPBOX_TOKEN environment variable..."
-    - VITE_MAPBOX_TOKEN="$VITE_MAPBOX_TOKEN" npm run build
-    - echo ""
-    - echo "=== Checking built JavaScript bundle for token ==="
-    - |
-      set +e  # Don't exit on error
-      if [ -d dist/assets ]; then
-        JS_FILE=$(find dist/assets -name "index-*.js" | head -1)
-        if [ -n "$JS_FILE" ]; then
-          echo "Found built JS file: $JS_FILE"
-          echo ""
-          echo "Checking for token (pk.ey prefix):"
-          if grep -q "pk\.ey" "$JS_FILE" 2>/dev/null; then
-            echo "✓ Token found in built bundle!"
-            grep -o "pk\.ey[^\"]*" "$JS_FILE" | head -c 20
-            echo "..."
-          else
-            echo "✗ Token NOT found in built bundle"
-          fi
-          echo ""
-          echo "Checking for VITE_MAPBOX_TOKEN string (should NOT be present if replaced):"
-          if grep -q "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null; then
-            echo "✗ VITE_MAPBOX_TOKEN string still present - token was NOT replaced!"
-            echo "  Showing context where it appears (first 3 matches):"
-            grep "VITE_MAPBOX_TOKEN" "$JS_FILE" 2>/dev/null | head -3 || true
-            echo ""
-            echo "NOTE: This is a warning - Vite should have replaced this but didn't."
-          else
-            echo "✓ VITE_MAPBOX_TOKEN string not found (good - means it was replaced)"
-          fi
-          echo ""
-          echo "Checking for import.meta.env in the bundle:"
-          if grep -q "import\.meta\.env" "$JS_FILE" 2>/dev/null; then
-            echo "✗ import.meta.env found - checking if VITE_MAPBOX_TOKEN is referenced:"
-            if grep -q "import\.meta\.env.*VITE_MAPBOX_TOKEN\|VITE_MAPBOX_TOKEN.*import\.meta\.env" "$JS_FILE" 2>/dev/null; then
-              echo "✗✗ import.meta.env.VITE_MAPBOX_TOKEN is STILL in the code - not replaced!"
-            else
-              echo "  (import.meta.env found but not for VITE_MAPBOX_TOKEN)"
-            fi
-          else
-            echo "✓ No import.meta.env references found"
-          fi
-          echo ""
-          echo "Checking for undefined token:"
-          if grep -q 'MAPBOX_TOKEN.*undefined\|undefined.*MAPBOX_TOKEN\|"undefined".*mapbox' "$JS_FILE" 2>/dev/null; then
-            echo "✗ Found undefined in context of Mapbox token!"
-          else
-            echo "✓ No undefined found in Mapbox context"
-          fi
-        else
-          echo "ERROR: Could not find built JS file in dist/assets/"
-        fi
-      else
-        echo "ERROR: dist/assets/ directory not found"
-      fi
+    - npm run build
 
 deploy_project:
   stage: deploy
