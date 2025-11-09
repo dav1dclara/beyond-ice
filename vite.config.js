@@ -13,9 +13,22 @@ export default defineConfig(({ mode }) => {
   
   return {
     base: "/project/dclara/", // IMPORTANT: Replace with your student ID
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      {
+        name: 'replace-mapbox-token',
+        transform(code, id) {
+          if (id.includes('mapbox.js') || code.includes('VITE_MAPBOX_TOKEN')) {
+            return code.replace(
+              /import\.meta\.env\.VITE_MAPBOX_TOKEN/g,
+              JSON.stringify(mapboxToken)
+            );
+          }
+        },
+      },
+    ],
     define: {
-      // Explicitly replace import.meta.env.VITE_MAPBOX_TOKEN with the actual value
+      // Also try with define as fallback
       'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(mapboxToken),
     },
     server: {
