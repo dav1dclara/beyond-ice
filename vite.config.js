@@ -18,10 +18,12 @@ export default defineConfig(({ mode }) => {
       {
         name: 'replace-mapbox-token',
         transform(code, id) {
-          if (id.includes('mapbox.js') || code.includes('VITE_MAPBOX_TOKEN')) {
+          // Only transform mapbox.js file
+          if (id.endsWith('mapbox.js')) {
+            // Replace only the assignment, not in console.log or other contexts
             return code.replace(
-              /import\.meta\.env\.VITE_MAPBOX_TOKEN/g,
-              JSON.stringify(mapboxToken)
+              /export const MAPBOX_TOKEN = import\.meta\.env\.VITE_MAPBOX_TOKEN;/,
+              `export const MAPBOX_TOKEN = ${JSON.stringify(mapboxToken)};`
             );
           }
         },
