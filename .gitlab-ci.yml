@@ -7,9 +7,10 @@ build_project:
   image: node:20
   script:
     - echo "Checking environment variables..."
-    - 'if [ -z "$VITE_MAPBOX_TOKEN" ]; then echo "ERROR: VITE_MAPBOX_TOKEN is not set!"; else echo "VITE_MAPBOX_TOKEN is set"; fi'
+    - 'if [ -z "$VITE_MAPBOX_TOKEN" ]; then echo "ERROR: VITE_MAPBOX_TOKEN is not set!"; exit 1; else echo "VITE_MAPBOX_TOKEN is set"; fi'
+    - echo "VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN" > .env
     - npm install
-    - VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN npm run build
+    - npm run build
 
 deploy_project:
   stage: deploy
