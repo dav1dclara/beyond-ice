@@ -5,6 +5,8 @@ stages:
 build_project:
   stage: build
   image: node:20
+  variables:
+    VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
   script:
     - npm install
     - npm run build
