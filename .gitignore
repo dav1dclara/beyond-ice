@@ -13,9 +13,7 @@ dist-ssr
 *.local
 
 # Environment variables
-# .env - TEMPORARILY COMMITTED (site is behind VPN)
-# .env.local
-# .env.*.local
+.env
 
 # Data files
 /data/
