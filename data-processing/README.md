@@ -5,6 +5,8 @@
 Install required Python packages:
 
 ```bash
+conda create -n BEYONDICE python=3.11
+conda activate BEYONDICE
 pip install -r requirements.txt
 ```
 
@@ -13,13 +15,13 @@ pip install -r requirements.txt
 Convert a shapefile to GeoJSON with automatic CRS transformation to WGS84:
 
 ```bash
-python scripts/shapefile_to_geojson.py data/input.shp -o data/output.geojson
+python data-processing/shapefile_to_geojson.py data/input.shp -o data/output.geojson
 ```
 
 If no output is specified, it will create a `.geojson` file with the same name as the input:
 
 ```bash
-python scripts/shapefile_to_geojson.py data/input.shp
+python data-processing/shapefile_to_geojson.py data/input.shp
 # Creates: data/input.geojson
 ```
 
@@ -32,9 +34,9 @@ python scripts/shapefile_to_geojson.py data/input.shp
 
 ```bash
 # Convert shapefile to GeoJSON
-python scripts/shapefile_to_geojson.py data/my_shapefile.shp -o data/my_shapefile.geojson
+python data-processing/shapefile_to_geojson.py data/my_shapefile.shp -o data/my_shapefile.geojson
 
 # Convert with custom CRS
-python scripts/shapefile_to_geojson.py data/my_shapefile.shp --crs EPSG:3857
+python data-processing/shapefile_to_geojson.py data/my_shapefile.shp --crs EPSG:3857
 ```
 
