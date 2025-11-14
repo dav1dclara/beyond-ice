@@ -37,17 +37,18 @@
       :map="map"
       @zoom="zoomToExtent"
     />
-    <!-- <CurrentProjectedToggle
+    <CurrentProjectedToggle
       v-if="mapLoaded"
       :is-projected="isProjected"
       @toggle="toggleCurrentProjected"
-    /> -->
+    />
     <ScenarioSelector
       v-if="mapLoaded && isProjected"
       @change="handleScenarioChange"
     />
     <TimeSlider
       v-if="mapLoaded && isProjected"
+      @change="handleYearChange"
     />
     <TerrainToggle
       v-if="mapLoaded"
@@ -103,6 +104,8 @@ const searchQuery = ref('');
 const searchInput = ref(null);
 let currentSelectedId = null; // Track currently selected feature ID
 let currentHoveredId = null; // Track currently hovered feature ID
+let futureExtentsSelectedId = null; // Track currently selected future extents feature ID
+let futureExtentsHoveredId = null; // Track currently hovered future extents feature ID
 let dataBounds = null; // Store bounds for zoom to extent
 let userLocation = null; // Store user location coordinates
 
@@ -144,13 +147,18 @@ const initializeMap = () => {
         maxzoom: 14,
       });
 
-      // Add GeoJSON source
+      // Add GeoJSON source for current glacier data
       // Use promoteId to use 'gid' property as feature ID for setFeatureState
       map.value.addSource("geojson-data", {
         type: "geojson",
         data: `${import.meta.env.BASE_URL}data/sgi2016.geojson`,
         promoteId: "gid", // Use 'gid' property as feature ID
       });
+      
+      // Load initial future extents if in projected mode
+      if (isProjected.value) {
+        loadFutureExtentsLayer(2020);
+      }
 
       // Add layer to display the features
       map.value.addLayer({
@@ -353,9 +361,12 @@ const reAddGeoJSONLayers = () => {
         ],
         "fill-opacity": 0.6,
       },
+      layout: {
+        visibility: isProjected.value ? 'none' : 'visible',
+      },
     });
   } else {
-    // Update existing layer colors
+    // Update existing layer colors and visibility
     map.value.setPaintProperty("geojson-layer", "fill-color", [
       "case",
       ["boolean", ["feature-state", "selected"], false],
@@ -364,6 +375,7 @@ const reAddGeoJSONLayers = () => {
       "#B0E0E6", // Highlight color on hover (powder blue)
       "#87CEEB", // Default color (sky blue)
     ]);
+    map.value.setLayoutProperty("geojson-layer", "visibility", isProjected.value ? 'none' : 'visible');
   }
   
   // Re-add or update outline layer
@@ -376,10 +388,14 @@ const reAddGeoJSONLayers = () => {
         "line-color": "#87CEEB",
         "line-width": 2,
       },
+      layout: {
+        visibility: isProjected.value ? 'none' : 'visible',
+      },
     });
   } else {
-    // Update existing layer color
+    // Update existing layer color and visibility
     map.value.setPaintProperty("geojson-outline", "line-color", "#87CEEB");
+    map.value.setLayoutProperty("geojson-outline", "visibility", isProjected.value ? 'none' : 'visible');
   }
   
   // Re-add terrain source if it doesn't exist
@@ -390,6 +406,86 @@ const reAddGeoJSONLayers = () => {
       tileSize: 256,
       maxzoom: 14,
     });
+  }
+  
+  // Re-add future extents layers if in projected mode
+  if (isProjected.value) {
+    const scenario = 'ssp245'; // TODO: Get from scenario selector
+    const currentYear = 2020; // TODO: Get from time slider
+    const url = `${import.meta.env.BASE_URL}data/processed/future_extents/${scenario}/${currentYear}.geojson`;
+    
+    if (!map.value.getSource('future-extents-data')) {
+      map.value.addSource('future-extents-data', {
+        type: 'geojson',
+        data: url,
+        promoteId: 'sgi-id', // Use 'sgi-id' property as feature ID
+      });
+    }
+    
+    if (!map.value.getLayer('future-extents-layer')) {
+      map.value.addLayer({
+        id: 'future-extents-layer',
+        type: 'fill',
+        source: 'future-extents-data',
+        paint: {
+          'fill-color': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false],
+            '#FF4444', // Selected color (darker red)
+            ['boolean', ['feature-state', 'hover'], false],
+            '#FF9999', // Hover color (lighter red)
+            '#FF6B6B', // Default color (red)
+          ],
+          'fill-opacity': 0.5,
+        },
+        layout: {
+          visibility: isProjected.value ? 'visible' : 'none',
+        },
+      });
+      addFutureExtentsEventHandlers();
+    } else {
+      map.value.setLayoutProperty('future-extents-layer', 'visibility', isProjected.value ? 'visible' : 'none');
+      map.value.setPaintProperty('future-extents-layer', 'fill-color', [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        '#FF4444',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#FF9999',
+        '#FF6B6B',
+      ]);
+    }
+    
+    if (!map.value.getLayer('future-extents-outline')) {
+      map.value.addLayer({
+        id: 'future-extents-outline',
+        type: 'line',
+        source: 'future-extents-data',
+        paint: {
+          'line-color': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false],
+            '#FF4444', // Selected color (darker red)
+            ['boolean', ['feature-state', 'hover'], false],
+            '#FF9999', // Hover color (lighter red)
+            '#FF6B6B', // Default color (red)
+          ],
+          'line-width': 2,
+        },
+        layout: {
+          visibility: isProjected.value ? 'visible' : 'none',
+        },
+      });
+    } else {
+      map.value.setLayoutProperty('future-extents-outline', 'visibility', isProjected.value ? 'visible' : 'none');
+      map.value.setPaintProperty('future-extents-outline', 'line-color', [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        '#FF4444',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#FF9999',
+        '#FF6B6B',
+      ]);
+    }
   }
   
   // Re-add user location marker if it exists
@@ -442,8 +538,44 @@ const toggle3DTerrain = () => {
 };
 
 const toggleCurrentProjected = () => {
-  // UI-only toggle for now - no logic implemented yet
   isProjected.value = !isProjected.value;
+  
+  if (!map.value) return;
+  
+  // Show/hide current glacier layers based on mode
+  const geojsonLayer = map.value.getLayer('geojson-layer');
+  const geojsonOutline = map.value.getLayer('geojson-outline');
+  
+  if (isProjected.value) {
+    // Hide current glacier data when in projected mode
+    if (geojsonLayer) {
+      map.value.setLayoutProperty('geojson-layer', 'visibility', 'none');
+    }
+    if (geojsonOutline) {
+      map.value.setLayoutProperty('geojson-outline', 'visibility', 'none');
+    }
+    
+    // Load initial future extents when switching to projected view
+    loadFutureExtentsLayer(2020);
+  } else {
+    // Show current glacier data when in current mode
+    if (geojsonLayer) {
+      map.value.setLayoutProperty('geojson-layer', 'visibility', 'visible');
+    }
+    if (geojsonOutline) {
+      map.value.setLayoutProperty('geojson-outline', 'visibility', 'visible');
+    }
+    
+    // Hide future extents when switching back to current mode
+    const futureExtentsLayer = map.value.getLayer('future-extents-layer');
+    const futureExtentsOutline = map.value.getLayer('future-extents-outline');
+    if (futureExtentsLayer) {
+      map.value.setLayoutProperty('future-extents-layer', 'visibility', 'none');
+    }
+    if (futureExtentsOutline) {
+      map.value.setLayoutProperty('future-extents-outline', 'visibility', 'none');
+    }
+  }
 };
 
 const handleInfoClick = () => {
@@ -454,6 +586,254 @@ const handleInfoClick = () => {
 const handleScenarioChange = (scenario) => {
   // Scenario change handler - no logic implemented yet
   console.log("Scenario changed to:", scenario);
+};
+
+const handleYearChange = (year) => {
+  loadFutureExtentsLayer(year);
+};
+
+// Function to add event handlers for future extents layer
+const addFutureExtentsEventHandlers = () => {
+  if (!map.value) return;
+  
+  // Remove existing handlers if any (to avoid duplicates)
+  try {
+    map.value.off('mousemove', 'future-extents-layer');
+    map.value.off('mouseleave', 'future-extents-layer');
+    map.value.off('click', 'future-extents-layer');
+  } catch (e) {
+    // Handlers might not exist yet, that's okay
+  }
+  
+  // Mouseover functionality - highlight and show tooltip
+  map.value.on('mousemove', 'future-extents-layer', (e) => {
+    // Change cursor to pointer
+    map.value.getCanvas().style.cursor = 'pointer';
+    
+    const feature = e.features[0];
+    const featureId = feature.id !== undefined ? feature.id : feature.properties?.['sgi-id'];
+    
+    // Clear previous hover if different feature
+    if (futureExtentsHoveredId !== null && futureExtentsHoveredId !== featureId) {
+      map.value.setFeatureState(
+        { source: 'future-extents-data', id: futureExtentsHoveredId },
+        { hover: false }
+      );
+    }
+    
+    // Highlight the feature if it has an ID
+    if (featureId !== undefined && futureExtentsHoveredId !== featureId) {
+      map.value.setFeatureState(
+        { source: 'future-extents-data', id: featureId },
+        { hover: true }
+      );
+      futureExtentsHoveredId = featureId;
+    }
+    
+    // Show tooltip with feature properties
+    if (feature && feature.properties) {
+      tooltipProperties.value = feature.properties;
+      tooltipVisible.value = true;
+      
+      // Get mouse position relative to the map container
+      tooltipX.value = e.point.x;
+      tooltipY.value = e.point.y + 10; // Offset below cursor
+    }
+  });
+  
+  // Mouse leave - remove highlight and hide tooltip
+  map.value.on('mouseleave', 'future-extents-layer', () => {
+    map.value.getCanvas().style.cursor = '';
+    
+    // Remove highlight from currently hovered feature
+    if (futureExtentsHoveredId !== null) {
+      map.value.setFeatureState(
+        { source: 'future-extents-data', id: futureExtentsHoveredId },
+        { hover: false }
+      );
+      futureExtentsHoveredId = null;
+    }
+    
+    // Hide tooltip
+    tooltipVisible.value = false;
+  });
+  
+  // Click functionality - highlight, zoom, and open sidebar
+  map.value.on('click', 'future-extents-layer', (e) => {
+    // Hide tooltip when clicking
+    tooltipVisible.value = false;
+    
+    const feature = e.features[0];
+    if (feature && feature.properties) {
+      // Get feature ID (promoted from sgi-id property)
+      const featureId = feature.id !== undefined ? feature.id : feature.properties?.['sgi-id'];
+      
+      // Clear previous selection if different feature
+      if (futureExtentsSelectedId !== null && futureExtentsSelectedId !== featureId) {
+        map.value.setFeatureState(
+          { source: 'future-extents-data', id: futureExtentsSelectedId },
+          { selected: false }
+        );
+      }
+      
+      // Highlight the clicked feature
+      if (featureId !== undefined) {
+        map.value.setFeatureState(
+          { source: 'future-extents-data', id: featureId },
+          { selected: true }
+        );
+        futureExtentsSelectedId = featureId;
+      }
+      
+      // Zoom to feature bounds
+      const bounds = calculateFeatureBounds(feature);
+      
+      if (bounds) {
+        map.value.fitBounds(bounds, { padding: 100, duration: 1000 });
+      }
+      
+      // Update sidebar data
+      selectedGlacier.value = {
+        name: feature.properties.name || null,
+        'sgi-id': feature.properties['sgi-id'] || null,
+      };
+      sidebarVisible.value = true;
+      
+      // Resize map after sidebar opens
+      setTimeout(() => {
+        map.value.resize();
+      }, 300); // Wait for CSS transition
+    }
+  });
+};
+
+const loadFutureExtentsLayer = async (year) => {
+  if (!map.value) return;
+  
+  try {
+    const scenario = 'ssp245'; // TODO: Get from scenario selector
+    const url = `${import.meta.env.BASE_URL}data/processed/future_extents/${scenario}/${year}.geojson`;
+    
+    // Check if source exists, if not create it
+    if (!map.value.getSource('future-extents-data')) {
+      map.value.addSource('future-extents-data', {
+        type: 'geojson',
+        data: url,
+        promoteId: 'sgi-id', // Use 'sgi-id' property as feature ID
+      });
+      
+      // Add fill layer with hover/selected states
+      if (!map.value.getLayer('future-extents-layer')) {
+        map.value.addLayer({
+          id: 'future-extents-layer',
+          type: 'fill',
+          source: 'future-extents-data',
+          paint: {
+            'fill-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              '#FF4444', // Selected color (darker red)
+              ['boolean', ['feature-state', 'hover'], false],
+              '#FF9999', // Hover color (lighter red)
+              '#FF6B6B', // Default color (red)
+            ],
+            'fill-opacity': 0.5,
+          },
+          layout: {
+            visibility: isProjected.value ? 'visible' : 'none',
+          },
+        });
+      }
+      
+      // Add outline layer
+      if (!map.value.getLayer('future-extents-outline')) {
+        map.value.addLayer({
+          id: 'future-extents-outline',
+          type: 'line',
+          source: 'future-extents-data',
+          paint: {
+            'line-color': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              '#FF4444', // Selected color (darker red)
+              ['boolean', ['feature-state', 'hover'], false],
+              '#FF9999', // Hover color (lighter red)
+              '#FF6B6B', // Default color (red)
+            ],
+            'line-width': 2,
+          },
+          layout: {
+            visibility: isProjected.value ? 'visible' : 'none',
+          },
+        });
+      }
+      
+      // Add event handlers for future extents layer
+      addFutureExtentsEventHandlers();
+    } else {
+      // Update existing source with new data
+      const source = map.value.getSource('future-extents-data');
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        source.setData(data);
+        
+        // Ensure layers exist and are visible when in projected mode
+        if (!map.value.getLayer('future-extents-layer')) {
+          map.value.addLayer({
+            id: 'future-extents-layer',
+            type: 'fill',
+            source: 'future-extents-data',
+            paint: {
+              'fill-color': [
+                'case',
+                ['boolean', ['feature-state', 'selected'], false],
+                '#FF4444', // Selected color (darker red)
+                ['boolean', ['feature-state', 'hover'], false],
+                '#FF9999', // Hover color (lighter red)
+                '#FF6B6B', // Default color (red)
+              ],
+              'fill-opacity': 0.5,
+            },
+            layout: {
+              visibility: isProjected.value ? 'visible' : 'none',
+            },
+          });
+          addFutureExtentsEventHandlers();
+        } else if (isProjected.value) {
+          map.value.setLayoutProperty('future-extents-layer', 'visibility', 'visible');
+        }
+        
+        if (!map.value.getLayer('future-extents-outline')) {
+          map.value.addLayer({
+            id: 'future-extents-outline',
+            type: 'line',
+            source: 'future-extents-data',
+            paint: {
+              'line-color': [
+                'case',
+                ['boolean', ['feature-state', 'selected'], false],
+                '#FF4444', // Selected color (darker red)
+                ['boolean', ['feature-state', 'hover'], false],
+                '#FF9999', // Hover color (lighter red)
+                '#FF6B6B', // Default color (red)
+              ],
+              'line-width': 2,
+            },
+            layout: {
+              visibility: isProjected.value ? 'visible' : 'none',
+            },
+          });
+        } else if (isProjected.value) {
+          map.value.setLayoutProperty('future-extents-outline', 'visibility', 'visible');
+        }
+      } else {
+        console.error(`Failed to load future extents for year ${year}:`, response.statusText);
+      }
+    }
+  } catch (error) {
+    console.error(`Error loading future extents for year ${year}:`, error);
+  }
 };
 
 const handleLocation = (location) => {
@@ -547,6 +927,15 @@ const closeSidebar = () => {
       { selected: false }
     );
     currentSelectedId = null;
+  }
+  
+  // Clear future extents selection highlight when sidebar closes
+  if (map.value && futureExtentsSelectedId !== null) {
+    map.value.setFeatureState(
+      { source: "future-extents-data", id: futureExtentsSelectedId },
+      { selected: false }
+    );
+    futureExtentsSelectedId = null;
   }
 
   // Resize map after sidebar closes

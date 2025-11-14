@@ -5,12 +5,14 @@
         type="range"
         :min="minYear"
         :max="maxYear"
+        :step="step"
         :value="currentYear"
         @input="handleSliderChange"
         class="time-slider"
       />
       <div class="slider-labels">
         <span class="label">{{ minYear }}</span>
+        <span class="label current-year">{{ currentYear }}</span>
         <span class="label">{{ maxYear }}</span>
       </div>
     </div>
@@ -18,26 +20,42 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 
 const props = defineProps({
   minYear: {
     type: Number,
-    default: 2016,
+    default: 2010,
   },
   maxYear: {
     type: Number,
     default: 2100,
   },
+  step: {
+    type: Number,
+    default: 2,
+  },
+  initialYear: {
+    type: Number,
+    default: 2020,
+  },
 });
 
-const currentYear = ref(props.minYear);
+const emit = defineEmits(['change']);
+
+const currentYear = ref(props.initialYear);
 
 const handleSliderChange = (event) => {
-  currentYear.value = parseInt(event.target.value);
-  // Emit change event for future functionality
-  // emit('change', currentYear.value);
+  const value = parseInt(event.target.value);
+  // Round to nearest step to ensure we're on valid years
+  currentYear.value = Math.round(value / props.step) * props.step;
+  emit('change', currentYear.value);
 };
+
+// Emit initial year when component is mounted to ensure map loads correct data
+onMounted(() => {
+  emit('change', currentYear.value);
+});
 </script>
 
 <style scoped>
@@ -113,6 +131,12 @@ const handleSliderChange = (event) => {
 
 .label {
   font-weight: 500;
+}
+
+.label.current-year {
+  font-weight: 700;
+  color: #87CEEB;
+  font-size: 14px;
 }
 </style>
 
