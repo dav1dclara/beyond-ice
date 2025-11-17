@@ -1,36 +1,10 @@
 <template>
-  <div class="mapbox-container" :class="{ 'sidebar-open': sidebarVisible, 'left-sidebar-open': leftSidebarVisible }">
-    <ControlPanel
-      v-if="mapLoaded"
-      :expanded="leftSidebarVisible"
-      @toggle="toggleLeftSidebar"
-      @search="showSearchBar"
-      @layers="handleLayers"
-    />
+  <div class="mapbox-container" :class="{ 'sidebar-open': sidebarVisible }">
     <div ref="mapContainer" class="map-container"></div>
     <div v-if="!mapLoaded" class="map-load-overlay">
       <button @click="initializeMap" class="load-map-button">
         Load Map
       </button>
-    </div>
-    <div v-if="searchBarVisible" class="search-bar-overlay">
-      <div class="search-bar-container">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search glaciers..."
-          class="search-bar-input"
-          @keyup.enter="hideSearchBar"
-          @keyup.esc="hideSearchBar"
-          ref="searchInput"
-        />
-        <button @click="hideSearchBar" class="search-bar-close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
     </div>
     <NavigationControls
       v-if="mapLoaded && map"
@@ -83,7 +57,6 @@ import ScenarioSelector from "./ScenarioSelector.vue";
 import TimeSlider from "./TimeSlider.vue";
 import InfoPanel from "./InfoPanel.vue";
 import Tooltip from "./Tooltip.vue";
-import ControlPanel from "./ControlPanel.vue";
 import NavigationControls from "./NavigationControls.vue";
 import { calculateGeoJSONBounds, calculateFeatureBounds } from "../utils/mapUtils.js";
 
@@ -93,15 +66,11 @@ const mapLoaded = ref(false);
 const terrain3DEnabled = ref(false);
 const isProjected = ref(false);
 const sidebarVisible = ref(false);
-const leftSidebarVisible = ref(false);
 const selectedGlacier = ref(null);
 const tooltipVisible = ref(false);
 const tooltipX = ref(0);
 const tooltipY = ref(0);
 const tooltipProperties = ref({});
-const searchBarVisible = ref(false);
-const searchQuery = ref('');
-const searchInput = ref(null);
 let currentSelectedId = null; // Track currently selected feature ID
 let currentHoveredId = null; // Track currently hovered feature ID
 let futureExtentsSelectedId = null; // Track currently selected future extents feature ID
@@ -946,16 +915,6 @@ const closeSidebar = () => {
   }
 };
 
-const toggleLeftSidebar = () => {
-  leftSidebarVisible.value = !leftSidebarVisible.value;
-  
-  // Resize map after sidebar toggles
-  if (map.value) {
-    setTimeout(() => {
-      map.value.resize();
-    }, 300);
-  }
-};
 
 const handleFullscreenResize = () => {
   // Resize map when entering/exiting fullscreen
@@ -966,25 +925,6 @@ const handleFullscreenResize = () => {
   }
 };
 
-const showSearchBar = () => {
-  searchBarVisible.value = true;
-  // Focus the input after it's rendered
-  setTimeout(() => {
-    if (searchInput.value) {
-      searchInput.value.focus();
-    }
-  }, 100);
-};
-
-const hideSearchBar = () => {
-  searchBarVisible.value = false;
-  searchQuery.value = '';
-};
-
-const handleLayers = () => {
-  // Layer selection functionality to be implemented
-  console.log('Layers button clicked');
-};
 
 // const handleSearch = () => {
 //   // Search functionality to be implemented
@@ -1044,87 +984,6 @@ onBeforeUnmount(() => {
   z-index: 1;
   overflow: visible;
 }
-
-.search-bar-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  pointer-events: none;
-}
-
-.search-bar-container {
-  position: relative;
-  width: 500px;
-  max-width: 90%;
-  pointer-events: all;
-  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.search-bar-input {
-  width: 100%;
-  padding: 16px 50px 16px 20px;
-  font-size: 16px;
-  border: 2px solid #e5e5e5;
-  border-radius: 8px;
-  outline: none;
-  background: white;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  transition: border-color 0.2s;
-}
-
-.search-bar-input:focus {
-  border-color: #10a37f;
-}
-
-.search-bar-input::placeholder {
-  color: #999;
-}
-
-.search-bar-close {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  color: #666;
-  transition: background-color 0.2s;
-  padding: 0;
-}
-
-.search-bar-close:hover {
-  background: #f5f5f5;
-}
-
-.search-bar-close svg {
-  width: 18px;
-  height: 18px;
-}
-
 
 .map-load-overlay {
   position: absolute;
@@ -1188,4 +1047,5 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 </style>
+
 

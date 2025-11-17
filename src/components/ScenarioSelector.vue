@@ -69,7 +69,7 @@ onBeforeUnmount(() => {
 .scenario-selector-container {
   position: absolute;
   bottom: 20px;
-  left: 220px; /* Position to the right of CurrentProjectedToggle (160px width + 20px left + 40px gap) */
+  left: 280px; /* Position to the right of CurrentProjectedToggle (160px width + 20px left + 40px gap) */
   z-index: 1000;
 }
 

@@ -2,28 +2,28 @@
   <button
     @click="$emit('toggle')"
     class="terrain-toggle-button"
-    :class="{ active: isActive }"
-    :title="isActive ? 'Switch to 2D view' : 'Switch to 3D view'"
+    :class="{ 'is-3d': is3D }"
+    :title="is3D ? 'Switch to 2D view' : 'Switch to 3D view'"
   >
-    {{ isActive ? '2D' : '3D' }}
+    {{ is3D ? '2D' : '3D' }}
   </button>
 </template>
 
 <script setup>
 defineProps({
-  isActive: {
+  is3D: {
     type: Boolean,
     default: false,
   },
-});
+})
 
-defineEmits(['toggle']);
+defineEmits(['toggle'])
 </script>
 
 <style scoped>
 .terrain-toggle-button {
   position: absolute;
-  bottom: 66px; /* Position above CurrentProjectedToggle (20px + 36px + 10px gap) */
+  bottom: 20px;
   left: 20px;
   z-index: 1000;
   min-width: 50px;
@@ -48,14 +48,13 @@ defineEmits(['toggle']);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.terrain-toggle-button.active {
+.terrain-toggle-button.is-3d {
   background: #87CEEB;
   color: white;
   border-color: #87CEEB;
 }
 
-.terrain-toggle-button.active:hover {
+.terrain-toggle-button.is-3d:hover {
   background: #B0E0E6;
 }
 </style>
-

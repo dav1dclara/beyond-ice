@@ -42,7 +42,7 @@ const selectProjected = () => {
 .current-projected-toggle-container {
   position: absolute;
   bottom: 20px;
-  left: 20px;
+  left: 80px;
   z-index: 1000;
   display: flex;
   background: white;
