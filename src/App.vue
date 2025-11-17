@@ -1,9 +1,11 @@
 <template>
+  <!-- <Map /> -->
   <MapboxViewer />
 </template>
 
 <script setup>
 import MapboxViewer from "./components/MapboxViewer.vue";
+// import Map from "./components/Map.vue";
 
 // Hot module replacement for development
 // This will ensure the page is fully (and not just partially) reloaded when the src/App.vue file is changed.
