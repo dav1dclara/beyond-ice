@@ -17,10 +17,10 @@ dist-ssr
 
 # Data files
 /data/
-!/public/data/
+public/data/
 
-# # Test/experimental files
-# experiments/
+# Test/experimental files
+experiments/
 
 # Editor directories and files
 .vscode/*
