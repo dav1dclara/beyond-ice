@@ -26,7 +26,7 @@ export function useMapboxMap(mapboxCanvas) {
       // Initialize Mapbox map
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
-        style: 'mapbox://styles/mapbox/dark-v11', // Dark style (default)
+        style: 'mapbox://styles/mapbox/light-v11', // Dark style (default)
         center: [8.2275, 46.8182], // Center of Switzerland
         zoom: 7,
         accessToken: MAPBOX_TOKEN,

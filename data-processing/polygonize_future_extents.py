@@ -87,112 +87,189 @@ def polygonize_raster_extent(raster_path, target_crs='EPSG:4326'):
 
 def main():
     # TODO: simplify/smooth the polygons
-    data_dir = Path("../data")    
-    input_dir = data_dir / "raw" / "future_extents" / "glacier_extents-ssp245"
-    print(f"Input directory: {input_dir}")
-
-    # Extract scenario from path (e.g., "glacier_extents-ssp245" -> "ssp245")
-    scenario = input_dir.name.split('-', 1)[1] if '-' in input_dir.name else None
-    print(f"Scenario: {scenario}")
-
-    output_dir = data_dir / "processed" / "future_extents" / scenario
-    output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Output directory: {output_dir}")
-
-    # Group files by prefix
-    files_by_prefix = {}
+    # Use script's directory as base for relative paths
+    script_dir = Path(__file__).parent
+    data_dir = script_dir / ".." / "data"
+    data_dir = data_dir.resolve()  # Resolve to absolute path
     
-    # Get all .tif files in the directory
-    for tif_file in input_dir.glob("*.tif"):
-        # Extract prefix (part before first underscore)
-        prefix = tif_file.stem.split('_')[0]
-        
-        # Add to dictionary
-        if prefix not in files_by_prefix:
-            files_by_prefix[prefix] = []
-        files_by_prefix[prefix].append(tif_file)
+    # Load the mapping file to get mapbox-id and name for each sgi_id
+    mapping_path = data_dir / "processed" / "mapping.csv"
+    if mapping_path.exists():
+        print(f"Loading mapping file: {mapping_path}")
+        mapping_df = pd.read_csv(mapping_path)
+        # Convert sgi_id to string for consistent lookup (handles any type mismatches)
+        mapping_df['sgi_id'] = mapping_df['sgi_id'].astype(str)
+        # Create a dictionary for quick lookup: sgi_id -> (mapbox-id, name)
+        mapping_dict = dict(zip(mapping_df['sgi_id'], zip(mapping_df['mapbox-id'], mapping_df['name'])))
+        print(f"  Loaded {len(mapping_dict)} mappings")
+    else:
+        print(f"Warning: Mapping file not found at {mapping_path}. Proceeding without mapbox-id and name assignment.")
+        mapping_dict = {}
     
-    # Print the total number of unique prefixes
-    print(f"\nTotal number of unique prefixes: {len(files_by_prefix)}")
+    # Process all scenarios
+    future_extents_dir = data_dir / "raw" / "future_extents"
     
-    # Track conversion statistics
-    total_files_processed = 0
-    total_files_successful = 0
-    total_files_failed = 0
-    unique_errors = {}  # Track unique error messages and their counts
+    if not future_extents_dir.exists():
+        print(f"Error: Input directory not found: {future_extents_dir}")
+        return
     
-    # Iterate through all prefixes and print them
-    for prefix in sorted(files_by_prefix.keys()):
-        if prefix == "bedrock":
-            continue
-        
-        # Remove "gl" from prefix to get year (e.g., "gl2010" -> "2010")
-        year = prefix.replace("gl", "")
-
-        # # Use this to skip years other than 2016
-        # if year != "2016":
-        #     continue
-
-        # # Determine output path
-        output_path = output_dir / f"{year}.geojson"
-        if output_path.exists():
-            print(f"✓ {output_path} already exists, skipping")
-            continue
-
-        # Polygonize all files in the prefix and combine into one GeoDataFrame
-        gdf_list = []
-        failed_files = []
-        
-        # Sort files by name
-        sorted_files = sorted(files_by_prefix[prefix], key=lambda x: x.name)
-        
-        # Process all files with progress bar
-        for tif_file in tqdm(sorted_files, desc=f"Polygonizing files for year {year}"):
-            total_files_processed += 1
-            gdf = polygonize_raster_extent(tif_file)
-            if len(gdf) > 0:
-                gdf_list.append(gdf)
-                total_files_successful += 1
-            else:
-                # File processed but produced no features
-                error_msg = "No valid data found"
-                failed_files.append((tif_file.name, error_msg))
-                total_files_failed += 1
-                unique_errors[error_msg] = unique_errors.get(error_msg, 0) + 1
-        
-        # Check if we have any successful conversions
-        if not gdf_list:
-            warnings.warn(f"No files were successfully converted for prefix {prefix}. Skipping.", UserWarning)
-            continue
-
-        # Combine all GeoDataFrames into one
-        combined_gdf = gpd.GeoDataFrame(pd.concat(gdf_list, ignore_index=True), crs=gdf_list[0].crs)
-
-        # Check that the number of features matches the number of files in the prefix
-        if len(combined_gdf) != len(files_by_prefix[prefix]):
-            print(
-                f"  -> [WARNING] Expected {len(files_by_prefix[prefix])} features (from {len(files_by_prefix[prefix])} files) "
-                f"but got {len(combined_gdf)}. {len(failed_files)} file(s) failed."
-            )
+    # Get all scenario directories
+    scenario_dirs = [d for d in future_extents_dir.iterdir() if d.is_dir()]
     
-        # Save to GeoJSON with the same name as the prefix
-        combined_gdf.to_file(output_path, driver='GeoJSON')
-        print(f"  -> Successfully saved to {output_path}")
+    if not scenario_dirs:
+        print(f"Warning: No scenario directories found in {future_extents_dir}")
+        return
     
-    # Print summary at the end
-    print("\n" + "=" * 100)
-    print("CONVERSION SUMMARY")
+    print(f"Found {len(scenario_dirs)} scenario(s) to process: {[d.name for d in scenario_dirs]}")
     print("=" * 100)
-    print(f"Total files processed: {total_files_processed}")
-    print(f"Successfully converted: {total_files_successful}")
-    print(f"Failed: {total_files_failed}")
     
-    # Print unique errors if any
-    if unique_errors:
-        print(f"\nUnique errors encountered ({len(unique_errors)}):")
-        for error_msg, count in sorted(unique_errors.items(), key=lambda x: x[1], reverse=True):
-            print(f"  [{count}x] {error_msg}")
+    # Process each scenario
+    for scenario_dir in sorted(scenario_dirs):
+        scenario = scenario_dir.name
+        print(f"\n{'=' * 100}")
+        print(f"Processing scenario: {scenario}")
+        print(f"{'=' * 100}")
+        
+        input_dir = scenario_dir
+        print(f"Input directory: {input_dir}")
+
+        output_dir = data_dir / "processed" / "future_extents" / scenario
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Output directory: {output_dir}")
+
+        # Group files by prefix
+        files_by_prefix = {}
+        
+        # Get all .tif files in the directory
+        for tif_file in input_dir.glob("*.tif"):
+            # Extract prefix (part before first underscore)
+            prefix = tif_file.stem.split('_')[0]
+            
+            # Add to dictionary
+            if prefix not in files_by_prefix:
+                files_by_prefix[prefix] = []
+            files_by_prefix[prefix].append(tif_file)
+        
+        # Print the total number of unique prefixes
+        print(f"\nTotal number of unique prefixes: {len(files_by_prefix)}")
+        
+        # Track conversion statistics for this scenario
+        scenario_files_processed = 0
+        scenario_files_successful = 0
+        scenario_files_failed = 0
+        scenario_unique_errors = {}  # Track unique error messages and their counts
+        
+        # Iterate through all prefixes and print them
+        for prefix in sorted(files_by_prefix.keys()):
+            if prefix == "bedrock":
+                continue
+        
+            # Remove "gl" from prefix to get year (e.g., "gl2010" -> "2010")
+            year = prefix.replace("gl", "")
+
+            # # Use this to skip years other than 2016
+            # if year != "2016":
+            #     continue
+
+            # # Determine output path
+            output_path = output_dir / f"{year}.geojson"
+            if output_path.exists():
+                print(f"✓ {output_path} already exists, skipping")
+                continue
+
+            # Polygonize all files in the prefix and combine into one GeoDataFrame
+            gdf_list = []
+            failed_files = []
+            
+            # Sort files by name
+            sorted_files = sorted(files_by_prefix[prefix], key=lambda x: x.name)
+            
+            # Process all files with progress bar
+            for tif_file in tqdm(sorted_files, desc=f"Polygonizing files for year {year}"):
+                scenario_files_processed += 1
+                gdf = polygonize_raster_extent(tif_file)
+                if len(gdf) > 0:
+                    gdf_list.append(gdf)
+                    scenario_files_successful += 1
+                else:
+                    # File processed but produced no features
+                    error_msg = "No valid data found"
+                    failed_files.append((tif_file.name, error_msg))
+                    scenario_files_failed += 1
+                    scenario_unique_errors[error_msg] = scenario_unique_errors.get(error_msg, 0) + 1
+            
+            # Check if we have any successful conversions
+            if not gdf_list:
+                warnings.warn(f"No files were successfully converted for prefix {prefix}. Skipping.", UserWarning)
+                continue
+
+            # Combine all GeoDataFrames into one
+            combined_gdf = gpd.GeoDataFrame(pd.concat(gdf_list, ignore_index=True), crs=gdf_list[0].crs)
+
+            # Check that the number of features matches the number of files in the prefix
+            if len(combined_gdf) != len(files_by_prefix[prefix]):
+                print(
+                    f"  -> [WARNING] Expected {len(files_by_prefix[prefix])} features (from {len(files_by_prefix[prefix])} files) "
+                    f"but got {len(combined_gdf)}. {len(failed_files)} file(s) failed."
+                )
+            
+            # Assign mapbox-id and name from mapping file based on sgi-id
+            if mapping_dict:
+                def get_mapping_info(sgi_id):
+                    # Convert to string for lookup (handles any type mismatches)
+                    sgi_id_str = str(sgi_id) if sgi_id is not None else None
+                    if sgi_id_str and sgi_id_str in mapping_dict:
+                        mapbox_id, name = mapping_dict[sgi_id_str]
+                        return mapbox_id, name
+                    return None, None
+                
+                # Apply mapping to get mapbox-id and name
+                mapping_results = combined_gdf['sgi-id'].apply(get_mapping_info)
+                combined_gdf['mapbox-id'] = [result[0] for result in mapping_results]
+                combined_gdf['name'] = [result[1] for result in mapping_results]
+                
+                # Count how many features got mapped and how many didn't
+                mapped_count = combined_gdf['mapbox-id'].notna().sum()
+                unmapped_count = combined_gdf['mapbox-id'].isna().sum()
+                print(f"  -> Assigned mapbox-id and name to {mapped_count} out of {len(combined_gdf)} features")
+                if unmapped_count > 0:
+                    print(f"  -> [WARNING] {unmapped_count} shape(s) were not mapped correctly (sgi-id not found in mapping file)")
+            else:
+                # If no mapping file, set to None
+                combined_gdf['mapbox-id'] = None
+                combined_gdf['name'] = None
+            
+            # Calculate area for each feature in square kilometers
+            # Reproject to EPSG:2056 (Swiss CH1903+ / LV95) for accurate area calculation
+            if combined_gdf.crs and str(combined_gdf.crs) != 'EPSG:2056':
+                gdf_for_area = combined_gdf.to_crs('EPSG:2056')
+                # Calculate area in square meters, then convert to square kilometers
+                area_m2 = gdf_for_area.geometry.area
+                combined_gdf['area_km2'] = area_m2 / 1_000_000
+            else:
+                # Calculate area in square meters, then convert to square kilometers
+                area_m2 = combined_gdf.geometry.area
+                combined_gdf['area_km2'] = area_m2 / 1_000_000
+        
+            # Save to GeoJSON with the same name as the prefix
+            combined_gdf.to_file(output_path, driver='GeoJSON')
+            print(f"  -> Successfully saved to {output_path}")
+        
+        # Print scenario summary
+        print(f"\n  Scenario '{scenario}' summary:")
+        print(f"    Files processed: {scenario_files_processed}")
+        print(f"    Successfully converted: {scenario_files_successful}")
+        print(f"    Failed: {scenario_files_failed}")
+        
+        # Print unique errors for this scenario if any
+        if scenario_unique_errors:
+            print(f"    Unique errors encountered ({len(scenario_unique_errors)}):")
+            for error_msg, count in sorted(scenario_unique_errors.items(), key=lambda x: x[1], reverse=True):
+                print(f"      [{count}x] {error_msg}")
     
+    # Print final summary
+    print("\n" + "=" * 100)
+    print("ALL SCENARIOS PROCESSED")
     print("=" * 100)
 
 
