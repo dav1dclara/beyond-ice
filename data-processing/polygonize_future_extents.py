@@ -131,130 +131,130 @@ def main():
         print(f"{'=' * 100}")
         
         input_dir = scenario_dir
-        print(f"Input directory: {input_dir}")
+    print(f"Input directory: {input_dir}")
 
-        output_dir = data_dir / "processed" / "future_extents" / scenario
-        output_dir.mkdir(parents=True, exist_ok=True)
-        print(f"Output directory: {output_dir}")
+    output_dir = data_dir / "processed" / "future_extents" / scenario
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Output directory: {output_dir}")
 
-        # Group files by prefix
-        files_by_prefix = {}
+    # Group files by prefix
+    files_by_prefix = {}
+    
+    # Get all .tif files in the directory
+    for tif_file in input_dir.glob("*.tif"):
+        # Extract prefix (part before first underscore)
+        prefix = tif_file.stem.split('_')[0]
         
-        # Get all .tif files in the directory
-        for tif_file in input_dir.glob("*.tif"):
-            # Extract prefix (part before first underscore)
-            prefix = tif_file.stem.split('_')[0]
-            
-            # Add to dictionary
-            if prefix not in files_by_prefix:
-                files_by_prefix[prefix] = []
-            files_by_prefix[prefix].append(tif_file)
-        
-        # Print the total number of unique prefixes
-        print(f"\nTotal number of unique prefixes: {len(files_by_prefix)}")
-        
+        # Add to dictionary
+        if prefix not in files_by_prefix:
+            files_by_prefix[prefix] = []
+        files_by_prefix[prefix].append(tif_file)
+    
+    # Print the total number of unique prefixes
+    print(f"\nTotal number of unique prefixes: {len(files_by_prefix)}")
+    
         # Track conversion statistics for this scenario
         scenario_files_processed = 0
         scenario_files_successful = 0
         scenario_files_failed = 0
         scenario_unique_errors = {}  # Track unique error messages and their counts
+    
+    # Iterate through all prefixes and print them
+    for prefix in sorted(files_by_prefix.keys()):
+        if prefix == "bedrock":
+            continue
         
-        # Iterate through all prefixes and print them
-        for prefix in sorted(files_by_prefix.keys()):
-            if prefix == "bedrock":
-                continue
+        # Remove "gl" from prefix to get year (e.g., "gl2010" -> "2010")
+        year = prefix.replace("gl", "")
+
+        # # Use this to skip years other than 2016
+        # if year != "2016":
+        #     continue
+
+        # # Determine output path
+        output_path = output_dir / f"{year}.geojson"
+        if output_path.exists():
+            print(f"✓ {output_path} already exists, skipping")
+            continue
+
+        # Polygonize all files in the prefix and combine into one GeoDataFrame
+        gdf_list = []
+        failed_files = []
         
-            # Remove "gl" from prefix to get year (e.g., "gl2010" -> "2010")
-            year = prefix.replace("gl", "")
-
-            # # Use this to skip years other than 2016
-            # if year != "2016":
-            #     continue
-
-            # # Determine output path
-            output_path = output_dir / f"{year}.geojson"
-            if output_path.exists():
-                print(f"✓ {output_path} already exists, skipping")
-                continue
-
-            # Polygonize all files in the prefix and combine into one GeoDataFrame
-            gdf_list = []
-            failed_files = []
-            
-            # Sort files by name
-            sorted_files = sorted(files_by_prefix[prefix], key=lambda x: x.name)
-            
-            # Process all files with progress bar
-            for tif_file in tqdm(sorted_files, desc=f"Polygonizing files for year {year}"):
+        # Sort files by name
+        sorted_files = sorted(files_by_prefix[prefix], key=lambda x: x.name)
+        
+        # Process all files with progress bar
+        for tif_file in tqdm(sorted_files, desc=f"Polygonizing files for year {year}"):
                 scenario_files_processed += 1
-                gdf = polygonize_raster_extent(tif_file)
-                if len(gdf) > 0:
-                    gdf_list.append(gdf)
+            gdf = polygonize_raster_extent(tif_file)
+            if len(gdf) > 0:
+                gdf_list.append(gdf)
                     scenario_files_successful += 1
-                else:
-                    # File processed but produced no features
-                    error_msg = "No valid data found"
-                    failed_files.append((tif_file.name, error_msg))
+            else:
+                # File processed but produced no features
+                error_msg = "No valid data found"
+                failed_files.append((tif_file.name, error_msg))
                     scenario_files_failed += 1
                     scenario_unique_errors[error_msg] = scenario_unique_errors.get(error_msg, 0) + 1
-            
-            # Check if we have any successful conversions
-            if not gdf_list:
-                warnings.warn(f"No files were successfully converted for prefix {prefix}. Skipping.", UserWarning)
-                continue
-
-            # Combine all GeoDataFrames into one
-            combined_gdf = gpd.GeoDataFrame(pd.concat(gdf_list, ignore_index=True), crs=gdf_list[0].crs)
-
-            # Check that the number of features matches the number of files in the prefix
-            if len(combined_gdf) != len(files_by_prefix[prefix]):
-                print(
-                    f"  -> [WARNING] Expected {len(files_by_prefix[prefix])} features (from {len(files_by_prefix[prefix])} files) "
-                    f"but got {len(combined_gdf)}. {len(failed_files)} file(s) failed."
-                )
-            
-            # Assign mapbox-id and name from mapping file based on sgi-id
-            if mapping_dict:
-                def get_mapping_info(sgi_id):
-                    # Convert to string for lookup (handles any type mismatches)
-                    sgi_id_str = str(sgi_id) if sgi_id is not None else None
-                    if sgi_id_str and sgi_id_str in mapping_dict:
-                        mapbox_id, name = mapping_dict[sgi_id_str]
-                        return mapbox_id, name
-                    return None, None
-                
-                # Apply mapping to get mapbox-id and name
-                mapping_results = combined_gdf['sgi-id'].apply(get_mapping_info)
-                combined_gdf['mapbox-id'] = [result[0] for result in mapping_results]
-                combined_gdf['name'] = [result[1] for result in mapping_results]
-                
-                # Count how many features got mapped and how many didn't
-                mapped_count = combined_gdf['mapbox-id'].notna().sum()
-                unmapped_count = combined_gdf['mapbox-id'].isna().sum()
-                print(f"  -> Assigned mapbox-id and name to {mapped_count} out of {len(combined_gdf)} features")
-                if unmapped_count > 0:
-                    print(f"  -> [WARNING] {unmapped_count} shape(s) were not mapped correctly (sgi-id not found in mapping file)")
-            else:
-                # If no mapping file, set to None
-                combined_gdf['mapbox-id'] = None
-                combined_gdf['name'] = None
-            
-            # Calculate area for each feature in square kilometers
-            # Reproject to EPSG:2056 (Swiss CH1903+ / LV95) for accurate area calculation
-            if combined_gdf.crs and str(combined_gdf.crs) != 'EPSG:2056':
-                gdf_for_area = combined_gdf.to_crs('EPSG:2056')
-                # Calculate area in square meters, then convert to square kilometers
-                area_m2 = gdf_for_area.geometry.area
-                combined_gdf['area_km2'] = area_m2 / 1_000_000
-            else:
-                # Calculate area in square meters, then convert to square kilometers
-                area_m2 = combined_gdf.geometry.area
-                combined_gdf['area_km2'] = area_m2 / 1_000_000
         
-            # Save to GeoJSON with the same name as the prefix
-            combined_gdf.to_file(output_path, driver='GeoJSON')
-            print(f"  -> Successfully saved to {output_path}")
+        # Check if we have any successful conversions
+        if not gdf_list:
+            warnings.warn(f"No files were successfully converted for prefix {prefix}. Skipping.", UserWarning)
+            continue
+
+        # Combine all GeoDataFrames into one
+        combined_gdf = gpd.GeoDataFrame(pd.concat(gdf_list, ignore_index=True), crs=gdf_list[0].crs)
+
+        # Check that the number of features matches the number of files in the prefix
+        if len(combined_gdf) != len(files_by_prefix[prefix]):
+            print(
+                f"  -> [WARNING] Expected {len(files_by_prefix[prefix])} features (from {len(files_by_prefix[prefix])} files) "
+                f"but got {len(combined_gdf)}. {len(failed_files)} file(s) failed."
+            )
         
+        # Assign mapbox-id and name from mapping file based on sgi-id
+        if mapping_dict:
+            def get_mapping_info(sgi_id):
+                # Convert to string for lookup (handles any type mismatches)
+                sgi_id_str = str(sgi_id) if sgi_id is not None else None
+                if sgi_id_str and sgi_id_str in mapping_dict:
+                    mapbox_id, name = mapping_dict[sgi_id_str]
+                    return mapbox_id, name
+                return None, None
+            
+            # Apply mapping to get mapbox-id and name
+            mapping_results = combined_gdf['sgi-id'].apply(get_mapping_info)
+            combined_gdf['mapbox-id'] = [result[0] for result in mapping_results]
+            combined_gdf['name'] = [result[1] for result in mapping_results]
+            
+            # Count how many features got mapped and how many didn't
+            mapped_count = combined_gdf['mapbox-id'].notna().sum()
+            unmapped_count = combined_gdf['mapbox-id'].isna().sum()
+            print(f"  -> Assigned mapbox-id and name to {mapped_count} out of {len(combined_gdf)} features")
+            if unmapped_count > 0:
+                print(f"  -> [WARNING] {unmapped_count} shape(s) were not mapped correctly (sgi-id not found in mapping file)")
+        else:
+            # If no mapping file, set to None
+            combined_gdf['mapbox-id'] = None
+            combined_gdf['name'] = None
+        
+        # Calculate area for each feature in square kilometers
+        # Reproject to EPSG:2056 (Swiss CH1903+ / LV95) for accurate area calculation
+        if combined_gdf.crs and str(combined_gdf.crs) != 'EPSG:2056':
+            gdf_for_area = combined_gdf.to_crs('EPSG:2056')
+            # Calculate area in square meters, then convert to square kilometers
+            area_m2 = gdf_for_area.geometry.area
+            combined_gdf['area_km2'] = area_m2 / 1_000_000
+        else:
+            # Calculate area in square meters, then convert to square kilometers
+            area_m2 = combined_gdf.geometry.area
+            combined_gdf['area_km2'] = area_m2 / 1_000_000
+    
+        # Save to GeoJSON with the same name as the prefix
+        combined_gdf.to_file(output_path, driver='GeoJSON')
+        print(f"  -> Successfully saved to {output_path}")
+    
         # Print scenario summary
         print(f"\n  Scenario '{scenario}' summary:")
         print(f"    Files processed: {scenario_files_processed}")

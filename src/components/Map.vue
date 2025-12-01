@@ -48,6 +48,17 @@
       @reset-bearing="handleResetBearing"
       @toggle="toggleTerrain"
     />
+    
+    <TimeSlider
+      :map-loaded="mapLoaded"
+      :selected-projection="projection"
+      :current-year="currentYear"
+      :min-year="PROJECTION_CONFIG.MIN_YEAR"
+      :max-year="PROJECTION_CONFIG.MAX_YEAR"
+      :step="PROJECTION_CONFIG.YEAR_STEP"
+      @projection-change="handleProjectionChange"
+      @year-change="handleYearChange"
+    />
   </div>
 </template>
 
@@ -66,6 +77,7 @@ import VisualizationSelector from './VisualizationSelector.vue'
 import MapControls from './MapControls.vue'
 import ProjectionControls from './ProjectionControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
+import TimeSlider from './TimeSlider.vue'
 
 // ============================================
 // Template Refs
@@ -609,7 +621,7 @@ const applyAreaVisualization = () => {
     map.value.once('idle', doApplyColors)
     // Also try immediately in case data is already loaded
     setTimeout(doApplyColors, 100)
-  } else {
+    } else {
     map.value.once('idle', doApplyColors)
   }
 }

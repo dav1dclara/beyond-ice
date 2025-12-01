@@ -67,61 +67,6 @@
         </button>
       </div>
     </div>
-    
-    <!-- Time Slider (outside dropdown, only when a scenario is selected, not "Current") -->
-    <div v-if="selectedProjection && selectedProjection !== 'Current'" class="time-slider-wrapper">
-      <div class="slider-labels-top">
-        <div class="label-row">
-          <span class="label">{{ minYear }}</span>
-          <span class="label current-year">{{ currentYear }}</span>
-          <span class="label">{{ maxYear }}</span>
-        </div>
-      </div>
-      <div class="slider-controls">
-        <button
-          @click="togglePlay"
-          class="play-button"
-          :title="isPlaying ? 'Pause animation' : 'Play animation'"
-        >
-          <svg
-            v-if="!isPlaying"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <svg
-            v-else
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="6" y="4" width="4" height="16"></rect>
-            <rect x="14" y="4" width="4" height="16"></rect>
-          </svg>
-        </button>
-        <input
-          type="range"
-          :min="minYear"
-          :max="maxYear"
-          :step="step"
-          :value="currentYear"
-          @input="handleSliderChange"
-          class="time-slider"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -172,8 +117,6 @@ const futureProjections = computed(() => {
 
 const currentYear = ref(props.initialYear);
 const isExpanded = ref(false);
-const isPlaying = ref(false);
-let animationInterval = null;
 
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value;
@@ -184,59 +127,6 @@ const selectProjection = (projection) => {
   isExpanded.value = false;
 };
 
-const handleSliderChange = (event) => {
-  // Stop animation if user manually moves slider
-  if (isPlaying.value) {
-    stopAnimation();
-  }
-  
-  const value = parseInt(event.target.value);
-  currentYear.value = Math.round(value / props.step) * props.step;
-  emit('year-change', currentYear.value);
-};
-
-const togglePlay = () => {
-  if (isPlaying.value) {
-    // Pause
-    stopAnimation();
-  } else {
-    // Play
-    startAnimation();
-  }
-};
-
-const startAnimation = () => {
-  if (isPlaying.value) return;
-  
-  isPlaying.value = true;
-  
-  // Animation speed: 500ms per step (adjust as needed)
-  const animationSpeed = 500;
-  
-  animationInterval = setInterval(() => {
-    // Increment year by step
-    const nextYear = currentYear.value + props.step;
-    
-    if (nextYear > props.maxYear) {
-      // Reached the end, stop animation
-      stopAnimation();
-      // Optionally loop: reset to minYear
-      // currentYear.value = props.minYear;
-      // emit('year-change', currentYear.value);
-    } else {
-      currentYear.value = nextYear;
-      emit('year-change', currentYear.value);
-    }
-  }, animationSpeed);
-};
-
-const stopAnimation = () => {
-  isPlaying.value = false;
-  if (animationInterval) {
-    clearInterval(animationInterval);
-    animationInterval = null;
-  }
-};
 
 // Sync with prop changes
 watch(() => props.initialYear, (newYear) => {
@@ -245,13 +135,8 @@ watch(() => props.initialYear, (newYear) => {
   }
 });
 
-// Stop animation when projection changes or component unmounts
-watch(() => props.selectedProjection, () => {
-  stopAnimation();
-});
 
 onBeforeUnmount(() => {
-  stopAnimation();
   document.removeEventListener('click', handleClickOutside);
 });
 
@@ -451,127 +336,5 @@ onBeforeUnmount(() => {
 .projection-option.active:hover {
   background: #d0d0d0;
   border-color: #5F9EA0;
-}
-
-.time-slider-wrapper {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  margin-left: 12px;
-  padding: 12px 16px;
-  background: white;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 1001;
-  min-width: 400px;
-}
-
-.slider-controls {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-
-.play-button {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #87CEEB;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  padding: 0;
-}
-
-.play-button:hover {
-  background: #5F9EA0;
-  transform: translateY(-1px);
-}
-
-.play-button:active {
-  transform: translateY(0);
-}
-
-.play-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.slider-labels-top {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #666;
-  min-width: 120px;
-}
-
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.slider-labels-top .label {
-  font-weight: 500;
-}
-
-.slider-labels-top .label.current-year {
-  font-weight: 700;
-  color: #333;
-  font-size: 14px;
-}
-
-.time-slider {
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: #d0d0d0;
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.time-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #666;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: background 0.2s;
-}
-
-.time-slider::-webkit-slider-thumb:hover {
-  background: #333;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.time-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #666;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: background 0.2s;
-}
-
-.time-slider::-moz-range-thumb:hover {
-  background: #333;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 </style>

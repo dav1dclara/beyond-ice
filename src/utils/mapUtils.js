@@ -89,12 +89,12 @@ export const calculateGeoJSONFileBounds = (geojson) => {
           });
         } else if (feature.geometry.type === "MultiPolygon") {
           // For MultiPolygon, iterate through all polygons and their first rings
-          coordinates.forEach((polygon) => {
-            polygon[0].forEach((coord) => {
-              bounds.extend(coord);
-            });
-          });
-        }
+    coordinates.forEach((polygon) => {
+      polygon[0].forEach((coord) => {
+        bounds.extend(coord);
+      });
+    });
+  }
       }
     });
   } 
