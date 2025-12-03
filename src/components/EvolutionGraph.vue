@@ -75,7 +75,7 @@
       <div v-else-if="areaData.length === 0" class="graph-empty">
         No data available
       </div>
-      <svg v-else class="graph-svg" viewBox="0 0 280 180" preserveAspectRatio="xMidYMid meet">
+      <svg v-else class="graph-svg" viewBox="0 0 280 180" preserveAspectRatio="xMinYMid meet">
         <!-- Grid lines -->
         <defs>
           <pattern id="grid" width="40" height="30" patternUnits="userSpaceOnUse">
@@ -88,15 +88,18 @@
         <line x1="30" y1="10" x2="30" y2="160" stroke="#666" stroke-width="1.5"/>
         <line x1="30" y1="160" x2="270" y2="160" stroke="#666" stroke-width="1.5"/>
         
-        <!-- Area line/path -->
-        <polyline
-          v-if="areaData.length > 0"
-          :points="graphPoints"
-          fill="none"
-          stroke="#87CEEB"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        <!-- Bar chart -->
+        <rect
+          v-for="(d, i) in areaData"
+          :key="`bar-${i}`"
+          :x="getPointX(i) - 8"
+          :y="getPointY(d.area)"
+          width="16"
+          :height="160 - getPointY(d.area)"
+          :fill="getCurrentYearIndex === i ? '#4682B4' : '#87CEEB'"
+          :stroke="getCurrentYearIndex === i ? '#2F4F4F' : 'white'"
+          stroke-width="1"
+          :class="{ 'current-year-bar': getCurrentYearIndex === i }"
         />
         
         <!-- Vertical line indicating current year -->
@@ -110,19 +113,6 @@
           stroke-width="2"
           stroke-dasharray="4,4"
           opacity="0.6"
-        />
-        
-        <!-- Area points -->
-        <circle
-          v-for="(d, i) in areaData"
-          :key="`point-${i}`"
-          :cx="getPointX(i)"
-          :cy="getPointY(d.area)"
-          :r="getCurrentYearIndex === i ? 5 : 3"
-          :fill="getCurrentYearIndex === i ? '#4682B4' : '#87CEEB'"
-          :stroke="getCurrentYearIndex === i ? '#2F4F4F' : 'white'"
-          :stroke-width="getCurrentYearIndex === i ? 2 : 1"
-          :class="{ 'current-year-point': getCurrentYearIndex === i }"
         />
         
         <!-- Axis labels -->
@@ -569,5 +559,6 @@ onBeforeUnmount(() => {
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  display: block;
 }
 </style>
