@@ -7,7 +7,28 @@
       @load="initializeMap" 
     />
     
-    <Sidebar
+    <SearchBar
+      :model-value="searchQuery"
+      :map-loaded="mapLoaded"
+      :show-search-results="showSearchResults"
+      :search-results="searchResults"
+      @search="handleSearch"
+      @clear="handleSearchClear"
+      @update:model-value="searchQuery = $event"
+      @select="handleGlacierSelect"
+      class="searchbar-top-center"
+    />
+    
+    <MapControls
+      v-if="mapLoaded"
+      :is-3d="is3D"
+      @reset-view="handleResetView"
+      @reset-bearing="handleResetBearing"
+      @toggle="toggleTerrain"
+      class="map-controls-top-right"
+    />
+    
+    <!-- <Sidebar
       v-model="searchQuery"
       :map-loaded="mapLoaded"
       :show-search-results="showSearchResults"
@@ -21,37 +42,12 @@
       @select="handleGlacierSelect"
       @zoom="handleZoomToGlacier"
       @toggle-filter="handleToggleFilter"
-    />
+    /> -->
     
-    <div class="map-control-panel">
-      <VisualizationSelector
-        :map-loaded="mapLoaded"
-        :selected-visualization="visualization"
-        @visualization-change="handleVisualizationChange"
-      />
-      
-      <ProjectionControls
-        :map-loaded="mapLoaded"
-        :selected-projection="projection"
-        :initial-year="currentYear"
-        :min-year="PROJECTION_CONFIG.MIN_YEAR"
-        :max-year="PROJECTION_CONFIG.MAX_YEAR"
-        :step="PROJECTION_CONFIG.YEAR_STEP"
-        @projection-change="handleProjectionChange"
-        @year-change="handleYearChange"
-      />
-    </div>
-    
-    <MapControls
-      v-if="mapLoaded"
-      :is-3d="is3D"
-      @reset-bearing="handleResetBearing"
-      @toggle="toggleTerrain"
-    />
-    
-    <TimeSlider
+    <ProjectionTimeControls
       :map-loaded="mapLoaded"
       :selected-projection="projection"
+      :selected-glacier="selectedGlacier"
       :current-year="currentYear"
       :min-year="PROJECTION_CONFIG.MIN_YEAR"
       :max-year="PROJECTION_CONFIG.MAX_YEAR"
@@ -72,12 +68,13 @@ import { useMapState } from '../composables/useMapState.js'
 import { calculateFeatureBounds } from '../utils/mapUtils.js'
 import { PROJECTION_CONFIG } from '../config/projections.js'
 import { TIMING } from '../config/timing.js'
-import Sidebar from './Sidebar.vue'
-import VisualizationSelector from './VisualizationSelector.vue'
+// import Sidebar from './Sidebar.vue'
+// import VisualizationSelector from './VisualizationSelector.vue'
 import MapControls from './MapControls.vue'
-import ProjectionControls from './ProjectionControls.vue'
+// import ProjectionControls from './ProjectionControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
-import TimeSlider from './TimeSlider.vue'
+import ProjectionTimeControls from './ProjectionTimeControls.vue'
+import SearchBar from './SearchBar.vue'
 
 // ============================================
 // Template Refs
@@ -138,7 +135,10 @@ const { getDataFilePath, loadDataSmooth, loadDataFull } = useGlacierDataLoading(
     }
   },
   onSearchClear: () => {
-    clearSearch()
+    // Only clear search results, not the search query when projection changes
+    showSearchResults.value = false
+    searchResults.value = []
+    // Don't clear searchQuery - preserve the glacier name in the search bar
   }
 })
 
@@ -166,6 +166,10 @@ const loadProjectionData = () => {
   const selectedMapboxId = selectedGlacier.value?.['mapbox-id'] || selectedGlacierId.value
   const wasFilterActive = isFilterActive.value
   
+  // Preserve the selectedGlacier object and search query before loading new data
+  const preservedGlacier = selectedGlacier.value ? { ...selectedGlacier.value } : null
+  const preservedSearchQuery = searchQuery.value
+  
   loadDataFull({
     layerId: activeLayerId.value,
     projection: projection.value,
@@ -175,10 +179,22 @@ const loadProjectionData = () => {
     selectedGlacierId: selectedGlacierId.value
   })
   
-  // Clear selection state if no feature to restore
+  // Restore the preserved glacier object if it existed
+  // The restoreSelection callback will update it if the feature is found in new data
+  if (preservedGlacier && selectedGlacier.value === null) {
+    selectedGlacier.value = preservedGlacier
+  }
+  
+  // Restore the search query to preserve the glacier name in the search bar
+  if (preservedGlacier && preservedSearchQuery) {
+    searchQuery.value = preservedSearchQuery
+  }
+  
+  // Only clear selection state if there was no glacier selected before
   if (selectedMapboxId === null || selectedMapboxId === undefined) {
     selectedGlacier.value = null
     selectedGlacierId.value = null
+    searchQuery.value = ''
   }
 }
 
@@ -234,6 +250,10 @@ const applyFilterForFeature = (mapboxId) => {
 const restoreSelection = (mapboxId, wasFilterActive = false) => {
   if (!map.value || !activeLayerId.value) return
   
+  // Preserve the existing glacier name if we have one
+  const preservedName = selectedGlacier.value?.name || null
+  const preservedSgiId = selectedGlacier.value?.['sgi-id'] || null
+  
   try {
     // Query all features from the source
     const features = map.value.querySourceFeatures(activeLayerId.value)
@@ -259,11 +279,11 @@ const restoreSelection = (mapboxId, wasFilterActive = false) => {
           { selected: true }
         )
         
-        // Update selected glacier state
+        // Update selected glacier state, preserving name if feature doesn't have one
         selectedGlacier.value = {
           id: featureId,
-          name: matchingFeature.properties?.name || null,
-          'sgi-id': matchingFeature.properties?.['sgi-id'] || null,
+          name: matchingFeature.properties?.name || preservedName || null,
+          'sgi-id': matchingFeature.properties?.['sgi-id'] || preservedSgiId || null,
           'mapbox-id': matchingFeature.properties?.['mapbox-id'] || featureId,
         }
         selectedGlacierId.value = featureId
@@ -282,21 +302,40 @@ const restoreSelection = (mapboxId, wasFilterActive = false) => {
         console.log('[Map] Restored selection for mapbox-id:', mapboxId, 'feature-id:', featureId)
       } else {
         console.warn('[Map] Found matching feature but no valid ID:', matchingFeature)
-        // Keep selection state even if feature not found - don't clear sidebar
-        // selectedGlacier.value = null
-        // selectedGlacierId.value = null
+        // Keep selection state with preserved name
+        if (selectedGlacier.value && preservedName) {
+          selectedGlacier.value.name = preservedName
+        }
       }
     } else {
       console.log('[Map] No matching feature found for mapbox-id:', mapboxId, '- keeping selection state')
-      // Don't clear selection - glacier might not exist in this year but should remain selected
-      // Keep the existing selectedGlacier and selectedGlacierId values
-      // This allows the sidebar to remain visible even when the glacier doesn't exist in current year
+      // Preserve the glacier name even if feature doesn't exist in this projection
+      if (selectedGlacier.value && preservedName) {
+        selectedGlacier.value.name = preservedName
+        selectedGlacier.value['mapbox-id'] = mapboxId
+      } else if (mapboxId && !selectedGlacier.value) {
+        // Create a minimal glacier object to preserve the name
+        selectedGlacier.value = {
+          id: mapboxId,
+          name: preservedName || 'Selected Glacier',
+          'sgi-id': preservedSgiId,
+          'mapbox-id': mapboxId,
+        }
+      }
     }
   } catch (error) {
     console.error('[Map] Error restoring selection:', error)
-    // Don't clear selection on error - keep sidebar visible
-    // selectedGlacier.value = null
-    // selectedGlacierId.value = null
+    // Preserve the glacier name on error
+    if (selectedGlacier.value && preservedName) {
+      selectedGlacier.value.name = preservedName
+    } else if (mapboxId && !selectedGlacier.value) {
+      selectedGlacier.value = {
+        id: mapboxId,
+        name: preservedName || 'Selected Glacier',
+        'sgi-id': preservedSgiId,
+        'mapbox-id': mapboxId,
+      }
+    }
   }
 }
 
@@ -456,6 +495,22 @@ const setupLayerHandlers = () => {
 }
 
 const mapClickHandlerSetup = ref(false)
+
+// Reset view handler - resets to initial center and zoom
+const handleResetView = () => {
+  if (!map.value) return
+  map.value.easeTo({
+    center: [8.2275, 46.8182], // Center of Switzerland
+    zoom: 7,
+    bearing: 0,
+    pitch: 0,
+    duration: 1000,
+  })
+  // Also reset terrain if in 3D mode
+  if (is3D.value) {
+    toggleTerrain()
+  }
+}
 
 // Reset bearing handler (delegates to composable)
 const handleResetBearing = () => {
@@ -922,22 +977,37 @@ onBeforeUnmount(() => {
   display: none !important;
 }
 
-.map-control-panel {
+.searchbar-top-center {
   position: absolute;
   top: 20px;
-  left: 352px; /* 20px (sidebar left) + 320px (sidebar width) + 12px (gap) */
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1000;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 12px;
+  width: auto;
+  min-width: 300px;
+  max-width: 500px;
 }
 
-/* Override absolute positioning for children when inside map-control-panel */
-.map-control-panel :deep(.visualization-selector),
-.map-control-panel :deep(.projection-controls) {
+.searchbar-top-center :deep(.searchbar-wrapper) {
   position: relative !important;
-  top: auto !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100%;
+  margin: 0;
+}
+
+.map-controls-top-right {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.map-controls-top-right :deep(.map-controls-bar) {
+  position: relative !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
   left: auto !important;
 }
 
