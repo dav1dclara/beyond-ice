@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
 """
-Convert shapefile to GeoJSON with CRS transformation.
-Transforms to WGS84 (EPSG:4326) for web mapping.
+Create mapping.csv file from a shapefile.
+The mapping file contains mapbox-id, sgi_id, and name for each glacier feature.
 """
 
-import sys
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
 
-def convert_shapefile_to_geojson(input_path, output_path, target_crs='EPSG:4326'):
+def create_mapping_csv(input_path, output_path):
     """
-    Convert shapefile to GeoJSON with CRS transformation.
+    Create mapping.csv file from a shapefile.
     
     Args:
         input_path: Path to input shapefile (.shp)
-        output_path: Path to output GeoJSON file
-        target_crs: Target CRS (default: EPSG:4326 for WGS84)
+        output_path: Path to output mapping.csv file
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -25,7 +23,7 @@ def convert_shapefile_to_geojson(input_path, output_path, target_crs='EPSG:4326'
     # Check if input file exists
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}")
-        sys.exit(1)
+        return
     
     print(f"Reading shapefile: {input_path}")
     
@@ -34,18 +32,9 @@ def convert_shapefile_to_geojson(input_path, output_path, target_crs='EPSG:4326'
         gdf = gpd.read_file(input_path)
     except Exception as e:
         print(f"Error reading shapefile: {e}")
-        sys.exit(1)
+        return
     
-    print(f"Original CRS: {gdf.crs}")
     print(f"Features: {len(gdf)}")
-    
-    # Transform CRS if needed
-    if gdf.crs is None:
-        print("Warning: No CRS defined. Assuming WGS84.")
-        gdf.set_crs(target_crs, inplace=True)
-    elif gdf.crs != target_crs:
-        print(f"Transforming to {target_crs}...")
-        gdf = gdf.to_crs(target_crs)
     
     # Find the sgi_id column (could be 'sgi-id', 'sgi_id', or similar)
     sgi_id_col = None
@@ -74,9 +63,9 @@ def convert_shapefile_to_geojson(input_path, output_path, target_crs='EPSG:4326'
     # Sort by sgi_id to ensure consistent ID assignment
     gdf = gdf.sort_values(by=sgi_id_col).reset_index(drop=True)
     
-    # Create mapbox-id for each feature (sequential integers for Mapbox performance)
+    # Create mapbox-id for each feature (sequential integers starting from 1 for Mapbox performance)
     # Integers are more efficient for Mapbox's setFeatureState and feature queries
-    gdf['mapbox-id'] = range(len(gdf))
+    gdf['mapbox-id'] = range(1, len(gdf) + 1)
     
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,22 +77,10 @@ def convert_shapefile_to_geojson(input_path, output_path, target_crs='EPSG:4326'
         'name': gdf[name_col]
     })
     
-    # Save mapping to CSV in the same output directory
-    mapping_path = output_path.parent / f"mapping.csv"
-    mapping_df.to_csv(mapping_path, index=False)
-    print(f"✓ Saved mapping to: {mapping_path}")
-    
-    # Write GeoJSON
-    print(f"Writing GeoJSON: {output_path}")
-    try:
-        gdf.to_file(output_path, driver='GeoJSON')
-        print(f"✓ Successfully converted to GeoJSON")
-        print(f"  Output: {output_path}")
-        print(f"  Features: {len(gdf)}")
-        print(f"  CRS: {gdf.crs}")
-    except Exception as e:
-        print(f"Error writing GeoJSON: {e}")
-        sys.exit(1)
+    # Save mapping to CSV
+    mapping_df.to_csv(output_path, index=False)
+    print(f"✓ Saved mapping to: {output_path}")
+    print(f"  Mapped {len(mapping_df)} features")
 
 
 def main():
@@ -113,9 +90,9 @@ def main():
     data_dir = data_dir.resolve()  # Resolve to absolute path
 
     input_path = data_dir / "raw" / "sgi2016" / "SGI_2016_glaciers.shp"
-    output_path = data_dir / "processed" / "sgi2016.geojson"
+    output_path = data_dir / "processed" / "mapping.csv"
 
-    convert_shapefile_to_geojson(
+    create_mapping_csv(
         input_path=input_path,
         output_path=output_path,
     )
@@ -123,4 +100,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
