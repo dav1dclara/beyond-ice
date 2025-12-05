@@ -28,19 +28,15 @@ export function useGlacierDataLoading(map, layerManager, options = {}) {
 
   /**
    * Get data file path based on projection and year
-   * @param {string} projection - Projection name (e.g., 'Current', 'SSP1-2.6')
+   * @param {string} projection - Projection name (e.g., 'SSP1-2.6')
    * @param {number} year - Year value
    * @returns {string} URL to the GeoJSON data file
    */
   const getDataFilePath = (projection, year) => {
-    if (projection === 'Current') {
-      return `${import.meta.env.BASE_URL}data/sgi2016.geojson`
-    }
-    
     const folder = PROJECTION_FOLDERS[projection]
     if (!folder) {
-      console.warn(`[useGlacierDataLoading] Unknown projection: ${projection}, using Current data`)
-      return `${import.meta.env.BASE_URL}data/sgi2016.geojson`
+      console.warn(`[useGlacierDataLoading] Unknown projection: ${projection}`)
+      return null
     }
     
     return `${import.meta.env.BASE_URL}data/${folder}/${year}.geojson`
