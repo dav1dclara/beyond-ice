@@ -28,22 +28,6 @@
       class="map-controls-top-right"
     />
     
-    <!-- <Sidebar
-      v-model="searchQuery"
-      :map-loaded="mapLoaded"
-      :show-search-results="showSearchResults"
-      :search-results="searchResults"
-      :selected-glacier="selectedGlacier"
-      :show-only-selected="isFilterActive"
-      :selected-projection="projection"
-      :current-year="currentYear"
-      @search="handleSearch"
-      @clear="handleSearchClear"
-      @select="handleGlacierSelect"
-      @zoom="handleZoomToGlacier"
-      @toggle-filter="handleToggleFilter"
-    /> -->
-    
     <ProjectionTimeControls
       :map-loaded="mapLoaded"
       :selected-projection="projection"
@@ -68,10 +52,7 @@ import { useMapState } from '../composables/useMapState.js'
 import { calculateFeatureBounds } from '../utils/mapUtils.js'
 import { PROJECTION_CONFIG } from '../config/projections.js'
 import { TIMING } from '../config/timing.js'
-// import Sidebar from './Sidebar.vue'
-// import VisualizationSelector from './VisualizationSelector.vue'
 import MapControls from './MapControls.vue'
-// import ProjectionControls from './ProjectionControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
 import ProjectionTimeControls from './ProjectionTimeControls.vue'
 import SearchBar from './SearchBar.vue'
@@ -433,7 +414,7 @@ const handleMapClick = (e) => {
 // Load GeoJSON layer when map is ready
 watch(mapLoaded, (loaded) => {
   if (loaded && map.value) {
-    // Load initial data based on default projection (Current)
+    // Load initial data based on default projection
     const geojsonUrl = getDataFilePath(projection.value, currentYear.value)
     const layerId = 'geojson-data'
     
@@ -536,10 +517,8 @@ const handleYearChange = (newYear) => {
   
   // Debounce the data loading to prevent rapid updates during slider drag
   yearChangeTimeout = setTimeout(() => {
-    // Reload data if not on Current projection
-    if (projection.value !== 'Current') {
-      loadProjectionDataSmooth(pendingYearUpdate)
-    }
+    // Reload data for the current projection
+    loadProjectionDataSmooth(pendingYearUpdate)
     pendingYearUpdate = null
   }, TIMING.YEAR_CHANGE_DEBOUNCE)
 }
@@ -602,13 +581,30 @@ const applyAreaVisualization = () => {
       // Debug: log first few features to check property names
       if (features.length > 0) {
         console.log('[Map] Sample feature properties:', Object.keys(features[0].properties || {}))
-        console.log('[Map] Sample area_km2 value:', features[0].properties?.['area_km2'])
       }
+      
+      // Find area column name - try different possible names
+      const firstFeature = features[0]
+      const props = firstFeature?.properties || {}
+      let areaKey = 'Area (km2)' // Default to most likely name
+      
+      if (!(areaKey in props)) {
+        // Try other common names
+        areaKey = Object.keys(props).find(key => 
+          key.toLowerCase().includes('area') && 
+          (key.includes('km2') || key.includes('km²'))
+        ) || 'Area (km2)'
+      }
+      
+      console.log('[Map] Using area column:', areaKey)
       
       // Extract area values
       const areas = features
-        .map(f => f.properties?.['area_km2'])
-        .filter(area => area !== null && area !== undefined && !isNaN(area) && area > 0)
+        .map(f => {
+          const area = f.properties?.[areaKey]
+          return area !== null && area !== undefined && !isNaN(area) && area > 0 ? area : null
+        })
+        .filter(area => area !== null)
       
       console.log('[Map] Valid area values found:', areas.length, 'out of', features.length)
       
@@ -631,7 +627,7 @@ const applyAreaVisualization = () => {
         [
           'interpolate',
           ['linear'],
-          ['get', 'area_km2'],
+          ['get', areaKey],
           minArea, '#E6F3FF', // Very light blue for smallest
           minArea + (maxArea - minArea) * 0.25, '#B3D9FF', // Light blue
           minArea + (maxArea - minArea) * 0.5, '#80C0FF', // Medium blue
@@ -855,8 +851,6 @@ const handleSearchClear = () => {
     }
     isFilterActive.value = false
   }
-  
-  closeSidebar()
 }
 
 // Zoom to glacier
@@ -910,34 +904,10 @@ const handleToggleFilter = () => {
   }
 }
 
-// Close sidebar and clear selection
-const closeSidebar = () => {
-  if (selectedGlacierId.value !== null && activeLayerId.value && map.value) {
-    map.value.setFeatureState(
-      { source: activeLayerId.value, id: selectedGlacierId.value },
-      { selected: false }
-    )
-  }
-  selectedGlacier.value = null
-  selectedGlacierId.value = null
-  searchQuery.value = ''
-  
-  // If filter is active, reset it to show all glaciers
-  if (showOnlySelected.value && activeLayerId.value && map.value) {
-    map.value.setFilter(activeLayerId.value, null)
-    const outlineLayerId = getOutlineLayerId(activeLayerId.value)
-    if (map.value.getLayer(outlineLayerId)) {
-      map.value.setFilter(outlineLayerId, null)
-    }
-    showOnlySelected.value = false
-  }
-}
-
 // Close search dropdown when clicking outside
 const handleClickOutside = (event) => {
-  const sidebar = event.target.closest('.sidebar')
   const searchbar = event.target.closest('.searchbar-wrapper')
-  if (!sidebar && !searchbar && showSearchResults.value) {
+  if (!searchbar && showSearchResults.value) {
     showSearchResults.value = false
   }
 }

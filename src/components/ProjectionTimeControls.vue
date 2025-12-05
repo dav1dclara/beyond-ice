@@ -1,7 +1,7 @@
 <template>
   <div v-if="mapLoaded" class="projection-time-controls-wrapper">
     <div 
-      v-if="selectedProjection !== 'Current' && selectedProjection !== null"
+      v-if="selectedProjection !== null"
       class="timeslider-container"
     >
       <div 
@@ -28,25 +28,87 @@
               Volume
             </button>
           </div>
+          <div class="chart-mode-toggle">
+            <button
+              @click="showPercentageChange = false"
+              :class="{ active: !showPercentageChange }"
+              class="mode-button"
+            >
+              Absolute
+            </button>
+            <button
+              @click="showPercentageChange = true"
+              :class="{ active: showPercentageChange }"
+              class="mode-button"
+            >
+              Change %
+            </button>
+          </div>
         </div>
         <div class="chart-svg-wrapper" @mouseleave="hoveredBar = null">
-          <svg class="bar-chart-svg" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none">
-            <!-- Bars -->
-            <path
-              v-for="(dataPoint, index) in chartData"
-              :key="`bar-${index}`"
-              :d="getBarPath(
-                getBarX(index),
-                getBarY(selectedMetric === 'area' ? dataPoint.area : dataPoint.volume),
-                barWidth,
-                Math.max(2, chartHeight - getBarY(selectedMetric === 'area' ? dataPoint.area : dataPoint.volume))
-              )"
-              :fill="dataPoint.year === currentYear ? '#4682B4' : '#87CEEB'"
-              @mouseenter="handleBarHover(dataPoint, index, $event)"
-              @mousemove="handleBarHover(dataPoint, index, $event)"
-              style="cursor: pointer;"
-            />
-          </svg>
+          <!-- Load chart button (shown when chart not loaded) -->
+          <div v-if="!chartLoaded && !chartLoading" class="chart-load-placeholder">
+            <button @click="loadChartData" class="load-chart-button">
+              Load Chart
+            </button>
+          </div>
+          <!-- Loading state -->
+          <div v-if="chartLoading" class="chart-load-placeholder">
+            <span class="loading-text">Loading chart data...</span>
+          </div>
+          <!-- Chart (shown when loaded) -->
+          <div v-if="chartLoaded" class="chart-container">
+            <svg class="bar-chart-svg" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none">
+              <!-- Y-axis line -->
+              <!-- <line
+                v-if="chartData.length > 0"
+                :x1="chartWidth"
+                :y1="0"
+                :x2="chartWidth"
+                :y2="chartHeight"
+                stroke="#ccc"
+                stroke-width="1"
+              /> -->
+              <!-- Year markers (vertical lines) -->
+              <!-- <line
+                v-for="(dataPoint, index) in chartData"
+                :key="`marker-${index}`"
+                :x1="getBarX(index) + barWidth / 2"
+                :y1="0"
+                :x2="getBarX(index) + barWidth / 2"
+                :y2="chartHeight"
+                stroke="#e0e0e0"
+                stroke-width="1"
+                opacity="0.5"
+              /> -->
+              <!-- Bars -->
+              <path
+                v-for="(dataPoint, index) in chartData"
+                :key="`bar-${index}`"
+                :d="getBarPath(
+                  getBarX(index),
+                  getBarY(getChartValue(dataPoint)),
+                  barWidth,
+                  Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
+                )"
+                :fill="dataPoint.year === currentYear ? '#4682B4' : '#87CEEB'"
+                @mouseenter="handleBarHover(dataPoint, index, $event)"
+                @mousemove="handleBarHover(dataPoint, index, $event)"
+                style="cursor: pointer;"
+              />
+            </svg>
+            <!-- Y-axis labels (outside SVG to prevent stretching) -->
+            <!-- <div v-if="chartData.length > 0" class="y-axis-labels">
+              <div
+                v-for="(tick, index) in yAxisTicks"
+                :key="`y-tick-${index}`"
+                class="y-axis-tick"
+                :style="{ top: `${getYAxisPosition(tick.value)}%` }"
+              >
+                {{ formatYAxisValue(tick.value) }}
+              </div>
+            </div> -->
+          </div>
           <!-- Tooltip -->
           <div 
             v-if="hoveredBar !== null"
@@ -55,7 +117,7 @@
           >
             <div class="tooltip-year">{{ hoveredBar.year }}</div>
             <div class="tooltip-value">
-              {{ formatValue(hoveredBar.value) }} {{ selectedMetric === 'area' ? 'km²' : 'km³' }}
+              {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit() }}
             </div>
           </div>
         </div>
@@ -88,6 +150,17 @@
             {{ year }}
           </span>
         </div>
+        <!-- Play button -->
+        <div class="play-controls">
+          <button
+            @click="toggleAnimation"
+            class="play-button"
+            :class="{ playing: isPlaying }"
+          >
+            <span v-if="!isPlaying">▶ Play</span>
+            <span v-else>⏸ Pause</span>
+          </button>
+        </div>
       </div>
     </div>
     <div 
@@ -95,31 +168,14 @@
     >
       <div 
         class="toggle-container"
-        :class="{ 'with-scenarios': selectedProjection !== 'Current' && selectedProjection !== null }"
+        :class="{ 'with-scenarios': selectedProjection !== null }"
       >
         <div 
           class="toggle-indicator"
-          :class="{ 'on-projected': selectedProjection !== 'Current' && selectedProjection !== null }"
-          :style="selectedProjection !== 'Current' && selectedProjection !== null ? getIndicatorStyle() : {}"
+          :class="{ 'on-projected': selectedProjection !== null }"
+          :style="selectedProjection !== null ? getIndicatorStyle() : {}"
         ></div>
-        <div class="toggle-section">
-          <span 
-            class="toggle-option"
-            :class="{ 'selected': selectedProjection === 'Current' }"
-            @click="selectCurrent"
-          >
-            Current
-          </span>
-          <span 
-            class="toggle-option"
-            :class="{ 'selected': selectedProjection !== 'Current' && selectedProjection !== null }"
-            @click="selectProjected"
-          >
-            Projected
-          </span>
-        </div>
         <div 
-          v-if="selectedProjection !== 'Current' && selectedProjection !== null"
           class="scenario-toggle-section"
         >
           <span 
@@ -138,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 
 const props = defineProps({
   mapLoaded: {
@@ -175,20 +231,6 @@ const emit = defineEmits(['projection-change', 'year-change'])
 
 const scenarios = ['SSP1-2.6', 'SSP2-4.5', 'SSP3-7.0', 'SSP5-8.5']
 
-const selectCurrent = () => {
-  // Only emit if not already on Current
-  if (props.selectedProjection !== 'Current') {
-    emit('projection-change', 'Current')
-  }
-}
-
-const selectProjected = () => {
-  // Only emit if not already on a projected scenario
-  if (props.selectedProjection === 'Current' || props.selectedProjection === null) {
-    emit('projection-change', 'SSP1-2.6')
-  }
-}
-
 const selectScenario = (scenario) => {
   // Only emit if not already on this scenario
   if (props.selectedProjection !== scenario) {
@@ -197,38 +239,86 @@ const selectScenario = (scenario) => {
 }
 
 const getIndicatorStyle = () => {
-  if (props.selectedProjection === 'Current' || props.selectedProjection === null) {
+  if (props.selectedProjection === null) {
     return {}
   }
-  // Indicator should cover: right half of toggle-section (100px) + entire scenario section (400px) = 500px total
-  // Position: start at 100px (right half of toggle-section)
+  // Indicator should cover the entire scenario section (400px)
   return {
-    width: '500px',
-    left: '100px'
+    width: '400px',
+    left: '0px'
   }
 }
 
 const handleYearChange = (event) => {
   const year = parseInt(event.target.value)
+  // Stop animation if user manually changes year
+  if (isPlaying.value) {
+    toggleAnimation()
+  }
   emit('year-change', year)
 }
+
+// Animation controls
+const toggleAnimation = () => {
+  if (isPlaying.value) {
+    // Stop animation
+    if (animationInterval.value) {
+      clearInterval(animationInterval.value)
+      animationInterval.value = null
+    }
+    isPlaying.value = false
+  } else {
+    // Start animation
+    isPlaying.value = true
+    const animate = () => {
+      const current = props.currentYear
+      const next = current + props.step
+      
+      if (next > props.maxYear) {
+        // Loop back to start
+        emit('year-change', props.minYear)
+      } else {
+        emit('year-change', next)
+      }
+    }
+    
+    // Start immediately, then repeat every 500ms
+    animate()
+    animationInterval.value = setInterval(animate, 500)
+  }
+}
+
+// Clean up interval on unmount
+onUnmounted(() => {
+  if (animationInterval.value) {
+    clearInterval(animationInterval.value)
+  }
+})
 
 // Bar chart data and calculations
 const chartData = ref([])
 const chartWidth = 400
 const chartHeight = 120
 const barWidth = 8
+const yAxisWidth = 50 // Space for y-axis labels
 const selectedMetric = ref('area')
+const showPercentageChange = ref(false)
 const hoveredBar = ref(null)
 const tooltipStyle = ref({})
 const sliderRef = ref(null)
+const isPlaying = ref(false)
+const animationInterval = ref(null)
+const chartLoaded = ref(false)
+const chartLoading = ref(false)
 
 const loadChartData = async () => {
-  if (!props.selectedGlacier || !props.selectedGlacier['mapbox-id'] || props.selectedProjection === 'Current') {
+  if (!props.selectedGlacier || !props.selectedGlacier['mapbox-id'] || !props.selectedProjection) {
     chartData.value = []
+    chartLoaded.value = false
     return
   }
 
+  chartLoading.value = true
   try {
     const mapboxId = props.selectedGlacier['mapbox-id']
     const scenarioFolderMap = {
@@ -261,17 +351,44 @@ const loadChartData = async () => {
         )
         
         if (feature) {
+          // Find area column - try different possible names
+          const props = feature.properties || {}
+          let areaValue = props['Area (km2)'] ?? props['area_km2'] ?? props['Area'] ?? null
+          
+          // If not found, search for any column with 'area' and 'km2' in the name
+          if (areaValue === null || areaValue === undefined) {
+            const areaKey = Object.keys(props).find(key => 
+              key.toLowerCase().includes('area') && 
+              (key.includes('km2') || key.includes('km²'))
+            )
+            areaValue = areaKey ? props[areaKey] : 0
+          }
+          
+          // Find volume column - try different possible names
+          const volumeValue = props['Volume (km3)'] ?? 
+                             props['volume_km3'] ?? 
+                             props['Volume'] ??
+                             props['volume'] ?? 0
+          
+          // Find percentage change columns
+          const areaChangePercent = props['Area change (%)'] ?? null
+          const volumeChangePercent = props['Volume change (%)'] ?? null
+          
           return {
             year,
-            area: feature.properties?.area_km2 ?? 0,
-            volume: feature.properties?.volume_km3 ?? feature.properties?.volume ?? 0
+            area: areaValue ?? 0,
+            volume: volumeValue ?? 0,
+            areaChange: areaChangePercent,
+            volumeChange: volumeChangePercent
           }
         }
         // Return 0 values if feature doesn't exist
         return {
           year,
           area: 0,
-          volume: 0
+          volume: 0,
+          areaChange: null,
+          volumeChange: null
         }
       } catch (error) {
         console.warn(`[BarChart] Error loading data for year ${year}:`, error)
@@ -279,16 +396,22 @@ const loadChartData = async () => {
         return {
           year,
           area: 0,
-          volume: 0
+          volume: 0,
+          areaChange: null,
+          volumeChange: null
         }
       }
     })
 
     const results = await Promise.all(promises)
     chartData.value = results
+    chartLoaded.value = true
   } catch (error) {
     console.error('[BarChart] Error loading chart data:', error)
     chartData.value = []
+    chartLoaded.value = false
+  } finally {
+    chartLoading.value = false
   }
 }
 
@@ -298,17 +421,100 @@ const getBarX = (index) => {
   return index * spacing
 }
 
+// Get the chart value based on current mode (absolute or percentage change)
+const getChartValue = (dataPoint) => {
+  if (showPercentageChange.value) {
+    // Use percentage change
+    const changeValue = selectedMetric.value === 'area' ? dataPoint.areaChange : dataPoint.volumeChange
+    return changeValue !== null && changeValue !== undefined ? changeValue : 0
+  } else {
+    // Use absolute value
+    return selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
+  }
+}
+
+// Get tooltip unit based on current mode
+const getTooltipUnit = () => {
+  if (showPercentageChange.value) {
+    return '%'
+  } else {
+    return selectedMetric.value === 'area' ? 'km²' : 'km³'
+  }
+}
+
+// Get min and max values for the chart
+const getChartMinMax = () => {
+  if (chartData.value.length === 0) return { min: 0, max: 1 }
+  const values = chartData.value.map(d => getChartValue(d)).filter(v => v !== null && v !== undefined)
+  if (values.length === 0) return { min: 0, max: 1 }
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values)
+  }
+}
+
+// Get Y position for a given value (returns percentage for CSS positioning)
+const getYAxisPosition = (value) => {
+  const { min, max } = getChartMinMax()
+  const range = max - min || 1
+  if (value === min) {
+    // Bottom of chart (accounting for padding)
+    return ((chartHeight - 2) / chartHeight) * 100
+  }
+  if (value === max) {
+    // Top of chart (accounting for padding)
+    return (2 / chartHeight) * 100
+  }
+  const position = chartHeight - ((value - min) / range) * (chartHeight - 20)
+  return (position / chartHeight) * 100
+}
+
+// Generate Y-axis ticks
+const yAxisTicks = computed(() => {
+  if (chartData.value.length === 0) return []
+  const { min, max } = getChartMinMax()
+  const range = max - min || 1
+  
+  // Generate 4-5 ticks
+  const numTicks = 5
+  const ticks = []
+  
+  for (let i = 0; i < numTicks; i++) {
+    const value = min + (range * i) / (numTicks - 1)
+    ticks.push({ value })
+  }
+  
+  return ticks
+})
+
+// Format Y-axis value
+const formatYAxisValue = (value) => {
+  if (showPercentageChange.value) {
+    // For percentage, show integer with sign
+    return value > 0 ? `+${Math.round(value)}%` : `${Math.round(value)}%`
+  } else {
+    // For absolute values, format appropriately
+    if (value < 0.01) {
+      return value.toExponential(1)
+    } else if (value < 1) {
+      return value.toFixed(2)
+    } else if (value < 100) {
+      return value.toFixed(1)
+    } else {
+      return Math.round(value).toLocaleString()
+    }
+  }
+}
+
 const getBarY = (value) => {
   if (chartData.value.length === 0) return chartHeight
-  const values = chartData.value.map(d => selectedMetric.value === 'area' ? d.area : d.volume)
-  const minValue = Math.min(...values)
-  const maxValue = Math.max(...values)
-  const range = maxValue - minValue || 1
+  const { min, max } = getChartMinMax()
+  const range = max - min || 1
   // For 0 values, show a small bar at the bottom instead of no bar
   if (value === 0 || value === null || value === undefined) {
     return chartHeight - 2 // 2px bar height for zero values
   }
-  return chartHeight - ((value - minValue) / range) * (chartHeight - 20)
+  return chartHeight - ((value - min) / range) * (chartHeight - 20)
 }
 
 const getBarPath = (x, y, width, height) => {
@@ -346,7 +552,7 @@ const thumbYearStyle = computed(() => {
 const handleBarHover = (dataPoint, index, event) => {
   hoveredBar.value = {
     year: dataPoint.year,
-    value: selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
+    value: getChartValue(dataPoint)
   }
   
   // Position tooltip near the cursor
@@ -384,7 +590,14 @@ const formatValue = (value) => {
   if (value === null || value === undefined || value === 0) {
     return '0'
   }
-  // Format with appropriate decimal places
+  
+  // For percentage values (integers), format differently
+  if (showPercentageChange.value) {
+    // Percentage values are integers, show with sign
+    return value > 0 ? `+${value}` : `${value}`
+  }
+  
+  // Format with appropriate decimal places for absolute values
   if (value < 0.01) {
     return value.toExponential(2)
   } else if (value < 1) {
@@ -429,13 +642,14 @@ const getYearLabelStyle = (year) => {
   }
 }
 
-// Watch for changes and reload data
+// Watch for changes - reset chart loaded state when glacier or projection changes
 watch([() => props.selectedGlacier, () => props.selectedProjection], () => {
-  loadChartData()
-}, { immediate: true })
+  chartLoaded.value = false
+  chartData.value = []
+})
 
 // Reload data when metric changes
-watch(selectedMetric, () => {
+watch([selectedMetric, showPercentageChange], () => {
   // Data is already loaded, just need to re-render
 })
 </script>
@@ -475,7 +689,7 @@ watch(selectedMetric, () => {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  width: 200px;
+  width: 400px;
   height: 40px;
   background: #e5e5e5;
   border-radius: 10px;
@@ -486,7 +700,7 @@ watch(selectedMetric, () => {
 }
 
 .toggle-container.with-scenarios {
-  width: 600px;
+  width: 400px;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -522,6 +736,41 @@ watch(selectedMetric, () => {
   flex-direction: column;
   gap: 8px;
   pointer-events: auto;
+}
+
+.play-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.play-button {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  background: #e5e5e5;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.play-button:hover {
+  background: #d0d0d0;
+  color: #000;
+}
+
+.play-button.playing {
+  background: #4682B4;
+  color: white;
+}
+
+.play-button.playing:hover {
+  background: #3a6a9a;
 }
 
 .slider-wrapper {
@@ -581,7 +830,16 @@ watch(selectedMetric, () => {
   padding: 2px;
 }
 
-.metric-button {
+.chart-mode-toggle {
+  display: flex;
+  gap: 4px;
+  background: #e5e5e5;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.metric-button,
+.mode-button {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
@@ -593,11 +851,13 @@ watch(selectedMetric, () => {
   transition: all 0.2s;
 }
 
-.metric-button:hover {
+.metric-button:hover,
+.mode-button:hover {
   color: #333;
 }
 
-.metric-button.active {
+.metric-button.active,
+.mode-button.active {
   background: white;
   color: #333;
   font-weight: 600;
@@ -611,10 +871,67 @@ watch(selectedMetric, () => {
   min-height: 0;
 }
 
-.bar-chart-svg {
+.chart-load-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
+  min-height: 120px;
+}
+
+.load-chart-button {
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  background: #4682B4;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-chart-button:hover {
+  background: #3a6a9a;
+}
+
+.loading-text {
+  font-size: 14px;
+  color: #666;
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.bar-chart-svg {
+  flex: 1;
+  height: 100%;
   display: block;
+}
+
+.y-axis-labels {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  pointer-events: none;
+}
+
+.y-axis-tick {
+  position: absolute;
+  right: 5px;
+  font-size: 10px;
+  color: #666;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
 .chart-tooltip {
@@ -672,6 +989,42 @@ watch(selectedMetric, () => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.play-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.play-button {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  background: #e5e5e5;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.play-button:hover {
+  background: #d0d0d0;
+  color: #000;
+}
+
+.play-button.playing {
+  background: #4682B4;
+  color: white;
+}
+
+.play-button.playing:hover {
+  background: #3a6a9a;
+}
+
 .year-labels {
   position: relative;
   width: 100%;
@@ -685,7 +1038,7 @@ watch(selectedMetric, () => {
   position: absolute;
   left: 0px;
   top: 0px;
-  width: 100px;
+  width: 400px;
   height: 40px;
   background: white;
   border-radius: 10px;
@@ -710,15 +1063,6 @@ watch(selectedMetric, () => {
 
 
 
-.toggle-section {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  width: 200px;
-  height: 40px;
-  flex-shrink: 0;
-}
-
 .scenario-toggle-section {
   position: relative;
   display: inline-flex;
@@ -727,7 +1071,7 @@ watch(selectedMetric, () => {
   height: 40px;
   flex-shrink: 0;
   background: transparent;
-  border-radius: 0 0 10px 0;
+  border-radius: 10px;
 }
 
 .toggle-option {
