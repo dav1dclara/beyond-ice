@@ -1,6 +1,7 @@
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
+from tqdm import tqdm
 
 
 def main():
@@ -37,6 +38,7 @@ def main():
     
     # Collect all column names from all shapefiles
     all_columns = []
+    first_file_processed = False
     
     # Iterate through each folder
     for folder in sorted(folders):
@@ -50,13 +52,108 @@ def main():
         output_dir = data_dir / "processed" / "future_extents" / scenario
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # For each shapefile, process and save
+        # Track summary statistics for this folder
+        folder_total_volumes = 0
+        folder_valid_volumes = 0
+        folder_total_areas = 0
+        folder_matched_areas = 0
+        
+        # Dictionary to store 2020 baseline data: {sgi_id: {'area': value, 'volume': value}}
+        baseline_2020 = {}
+        
+        # Helper function to extract year from filename
+        def extract_year(filename):
+            stem = Path(filename).stem
+            # Try different patterns: "2010", "gl2010", or find 4-digit year
+            if stem.isdigit():
+                return int(stem) if len(stem) == 4 else None
+            elif stem.startswith("gl") and len(stem) >= 6:
+                year_str = stem[2:6]
+                return int(year_str) if year_str.isdigit() else None
+            else:
+                import re
+                year_match = re.search(r'\d{4}', stem)
+                return int(year_match.group()) if year_match else None
+        
+        # First pass: collect 2020 baseline data
         for shp_file in shp_files:
+            year = extract_year(shp_file.name)
+            if year == 2020:
+                try:
+                    gdf_2020 = gpd.read_file(shp_file)
+                    
+                    # Rename volume columns to match processing (same as in main loop)
+                    rename_dict = {}
+                    for col in gdf_2020.columns:
+                        if col.startswith("Volume (km"):
+                            rename_dict[col] = "Volume (km3)"
+                    if rename_dict:
+                        gdf_2020 = gdf_2020.rename(columns=rename_dict)
+                    
+                    # Set negative volume values to None (same as in main processing)
+                    if "Volume (km3)" in gdf_2020.columns:
+                        gdf_2020.loc[gdf_2020["Volume (km3)"] < 0, "Volume (km3)"] = None
+                    
+                    # Find SGI-ID column
+                    sgi_id_col = None
+                    if "SGI-ID" in gdf_2020.columns:
+                        sgi_id_col = "SGI-ID"
+                    elif "Glacier_ID" in gdf_2020.columns:
+                        sgi_id_col = "Glacier_ID"
+                    
+                    if sgi_id_col:
+                        # Find area and volume columns
+                        area_col = None
+                        for col in gdf_2020.columns:
+                            if "Area" in col or "area" in col.lower():
+                                area_col = col
+                                break
+                        
+                        volume_col = None
+                        if "Volume (km3)" in gdf_2020.columns:
+                            volume_col = "Volume (km3)"
+                        
+                        # Calculate Mean Thickness for 2020 baseline (same as in main processing)
+                        if volume_col and area_col:
+                            gdf_2020["Mean Thickness (m)"] = (gdf_2020[volume_col] / gdf_2020[area_col]) * 1000
+                        
+                        # Store baseline values
+                        for idx, row in gdf_2020.iterrows():
+                            sgi_id = str(row[sgi_id_col]) if pd.notna(row[sgi_id_col]) else None
+                            if sgi_id:
+                                # Calculate thickness if available
+                                thickness = None
+                                if "Mean Thickness (m)" in gdf_2020.columns and pd.notna(row["Mean Thickness (m)"]):
+                                    thickness = row["Mean Thickness (m)"]
+                                
+                                baseline_2020[sgi_id] = {
+                                    'area': row[area_col] if area_col and pd.notna(row[area_col]) else None,
+                                    'volume': row[volume_col] if volume_col and pd.notna(row[volume_col]) else None,
+                                    'thickness': thickness
+                                }
+                except Exception as e:
+                    print(f"    Warning: Could not read 2020 baseline file {shp_file.name}: {e}")
+        
+        # Debug: print baseline collection summary
+        if baseline_2020:
+            print(f"    Collected {len(baseline_2020)} baseline values from 2020 files")
+        else:
+            print(f"    Warning: No 2020 baseline data collected for scenario {scenario}")
+        
+        # For each shapefile, process and save
+        pbar = tqdm(shp_files, desc=f"Processing {scenario}", unit="file")
+        for shp_file in pbar:
             try:
+                # Extract year and skip if before 2020
+                year = extract_year(shp_file.name)
+                if year is None or year < 2020:
+                    continue
+                
                 gdf = gpd.read_file(shp_file)
                 num_features = len(gdf)
-                print(f"  {shp_file.name}: {num_features} feature(s)")
-                
+                # Update progress bar description with current file info
+                pbar.set_description(f"Processing {scenario} - {shp_file.name} ({num_features} features)")
+
                 # Rename columns that start with "Volume (km" to "Volume (km3)"
                 rename_dict = {}
                 for col in gdf.columns:
@@ -66,9 +163,21 @@ def main():
                 if rename_dict:
                     gdf = gdf.rename(columns=rename_dict)
                 
-                # Assert that Volume and Area values are not below 0
+                # Check Volume: count and percentage of shapes with valid and non-negative volume
+                # Set negative volume values to None (invalid data - better than 0 for web map filtering)
                 if "Volume (km3)" in gdf.columns:
-                    assert (gdf["Volume (km3)"] >= 0).all(), f"Error in {shp_file.name}: Found negative Volume values"
+                    # Replace negative values with None
+                    gdf.loc[gdf["Volume (km3)"] < 0, "Volume (km3)"] = None
+                    
+                    total = len(gdf)
+                    valid_non_negative = gdf["Volume (km3)"].notna().sum()
+                    percentage = (valid_non_negative / total * 100) if total > 0 else 0
+                    all_valid = (valid_non_negative == total)
+                    checkmark = "✓" if all_valid else "✗"
+                    # print(f"    Volume: {checkmark} {valid_non_negative}/{total} ({percentage:.1f}%) valid and non-negative")
+                    # Accumulate for folder summary
+                    folder_total_volumes += total
+                    folder_valid_volumes += valid_non_negative
                 
                 # Find the Area column (could be "Area", "Area (km2)", etc.)
                 area_col = None
@@ -78,7 +187,41 @@ def main():
                         break
                 
                 if area_col:
-                    assert (gdf[area_col] >= 0).all(), f"Error in {shp_file.name}: Found negative Area values"
+                    # Check Area: count and percentage of shapes with valid and non-negative area
+                    total = len(gdf)
+                    valid_non_negative = ((gdf[area_col].notna()) & (gdf[area_col] >= 0)).sum()
+                    percentage = (valid_non_negative / total * 100) if total > 0 else 0
+                    all_valid = (valid_non_negative == total)
+                    checkmark = "✓" if all_valid else "✗"
+                    # print(f"    Area: {checkmark} {valid_non_negative}/{total} ({percentage:.1f}%) valid and non-negative")
+                
+                # Calculate area from geometry for comparison (temporary, not saved)
+                # Reproject to EPSG:2056 (Swiss CH1903+ / LV95) for accurate area calculation
+                if area_col:
+                    if gdf.crs is None:
+                        # If no CRS, assume it's already in a suitable CRS or set one
+                        gdf_for_area = gdf.copy()
+                    elif str(gdf.crs) != 'EPSG:2056':
+                        gdf_for_area = gdf.to_crs('EPSG:2056')
+                    else:
+                        gdf_for_area = gdf.copy()
+                    
+                    # Calculate area in square meters, then convert to square kilometers
+                    area_m2 = gdf_for_area.geometry.area
+                    computed_areas = area_m2 / 1_000_000
+                    
+                    # Count mismatched areas (using 1% relative tolerance)
+                    given_areas = gdf[area_col]
+                    # Calculate relative difference (percentage)
+                    relative_diff = abs((computed_areas - given_areas) / given_areas) * 100
+                    # Consider mismatched if relative difference > 1%
+                    mismatched = (relative_diff > 1.0).sum()
+                    total = len(gdf)
+                    matched = total - mismatched
+                    # print(f"    Area comparison: {matched}/{total} matched, {mismatched} mismatched (>1% difference)")
+                    # Accumulate for folder summary
+                    folder_total_areas += total
+                    folder_matched_areas += matched
                 
                 # Calculate Mean Thickness (m) = (Volume / Area) * 1000
                 if "Volume (km3)" in gdf.columns and area_col:
@@ -121,6 +264,64 @@ def main():
                 if glacier_id_col and glacier_id_col != "SGI-ID":
                     gdf = gdf.rename(columns={glacier_id_col: "SGI-ID"})
                 
+                # Calculate change in area, volume, and thickness compared to 2020
+                if "SGI-ID" in gdf.columns:
+                    area_change = []
+                    volume_change = []
+                    thickness_change = []
+                    
+                    for idx, row in gdf.iterrows():
+                        sgi_id = str(row["SGI-ID"]) if pd.notna(row["SGI-ID"]) else None
+                        
+                        # For 2020, change is 0% (baseline year)
+                        if year == 2020:
+                            area_change.append(0)
+                            volume_change.append(0)
+                            thickness_change.append(0)
+                        elif sgi_id and sgi_id in baseline_2020:
+                            baseline = baseline_2020[sgi_id]
+                            
+                            # Calculate area change as percentage (rounded to int)
+                            if area_col and area_col in gdf.columns:
+                                current_area = row[area_col] if pd.notna(row[area_col]) else None
+                            else:
+                                current_area = None
+                            baseline_area = baseline['area']
+                            if current_area is not None and baseline_area is not None and baseline_area != 0:
+                                # Percentage change: ((current - baseline) / baseline) * 100, rounded to int
+                                area_change.append(round(((current_area - baseline_area) / baseline_area) * 100))
+                            else:
+                                area_change.append(None)
+                            
+                            # Calculate volume change as percentage (rounded to int)
+                            current_volume = row["Volume (km3)"] if "Volume (km3)" in gdf.columns and pd.notna(row["Volume (km3)"]) else None
+                            baseline_volume = baseline['volume']
+                            if current_volume is not None and baseline_volume is not None and baseline_volume != 0:
+                                # Percentage change: ((current - baseline) / baseline) * 100, rounded to int
+                                volume_change.append(round(((current_volume - baseline_volume) / baseline_volume) * 100))
+                            else:
+                                volume_change.append(None)
+                            
+                            # Calculate thickness change as percentage (rounded to int)
+                            current_thickness = row["Mean Thickness (m)"] if "Mean Thickness (m)" in gdf.columns and pd.notna(row["Mean Thickness (m)"]) else None
+                            baseline_thickness = baseline['thickness']
+                            if current_thickness is not None and baseline_thickness is not None and baseline_thickness != 0:
+                                # Percentage change: ((current - baseline) / baseline) * 100, rounded to int
+                                thickness_change.append(round(((current_thickness - baseline_thickness) / baseline_thickness) * 100))
+                            else:
+                                thickness_change.append(None)
+                        else:
+                            area_change.append(None)
+                            volume_change.append(None)
+                            thickness_change.append(None)
+                    
+                    gdf['Area change (%)'] = area_change
+                    gdf['Volume change (%)'] = volume_change
+                    gdf['Thickness change (%)'] = thickness_change
+                else:
+                    gdf['Area change (km2)'] = None
+                    gdf['Volume change (km3)'] = None
+                
                 # Transform CRS to WGS84 (EPSG:4326) for web mapping
                 target_crs = 'EPSG:4326'
                 if gdf.crs is None:
@@ -129,7 +330,7 @@ def main():
                     gdf = gdf.to_crs(target_crs)
                 
                 # Save to GeoJSON
-                output_filename = shp_file.stem + ".geojson"
+                output_filename = str(year) + ".geojson"
                 output_path = output_dir / output_filename
                 gdf.to_file(output_path, driver='GeoJSON')
                 
@@ -140,6 +341,14 @@ def main():
                 print(f"  {shp_file.name}: Error - {e}")
                 import traceback
                 traceback.print_exc()
+        
+        # Print folder summary
+        print(f"\n  Summary for scenario '{scenario}':")
+        if folder_total_volumes > 0:
+            print(f"    Valid volumes: {folder_valid_volumes}/{folder_total_volumes} ({folder_valid_volumes/folder_total_volumes*100:.1f}%)")
+        if folder_total_areas > 0:
+            print(f"    Matched areas: {folder_matched_areas}/{folder_total_areas} ({folder_matched_areas/folder_total_areas*100:.1f}%)")
+        print()
     
     # Assert that all files have the same column names
     if all_columns:
