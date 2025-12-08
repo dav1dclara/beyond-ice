@@ -43,26 +43,29 @@ export function useMapControls(map) {
     is3D.value = !is3D.value
 
     if (is3D.value) {
-      // Enable 3D terrain
+      // Enable 3D terrain with performance optimizations
       // Add terrain source if it doesn't exist
       if (!map.value.getSource('mapbox-dem')) {
         map.value.addSource('mapbox-dem', {
           type: 'raster-dem',
           url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
           tileSize: 256,
-          maxzoom: 14,
+          maxzoom: 11, // Reduced from 14 for better performance
         })
       }
       
-      // Enable 3D terrain
+      // Enable 3D terrain with reduced exaggeration for better performance
       map.value.setTerrain({
         source: 'mapbox-dem',
-        exaggeration: 1.5,
+        exaggeration: 1.0, // Reduced from 1.5 for better performance
       })
       
-      // Tilt the map for 3D view
+      // Apply performance optimizations
+      map.value.setRenderWorldCopies(false)
+      
+      // Tilt the map for 3D view (reduced pitch for better performance)
       map.value.easeTo({
-        pitch: 60,
+        pitch: 50, // Reduced from 60 for better performance
         duration: 1000,
       })
     } else {

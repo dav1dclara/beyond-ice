@@ -25,6 +25,7 @@
       @reset-view="handleResetView"
       @reset-bearing="handleResetBearing"
       @toggle="toggleTerrain"
+      @zoom-to-extent="handleZoomToExtent"
       class="map-controls-top-right"
     />
     
@@ -49,12 +50,12 @@ import { useMapControls } from '../composables/useMapControls.js'
 import { useGlacierLayers } from '../composables/useGlacierLayers.js'
 import { useGlacierDataLoading } from '../composables/useGlacierDataLoading.js'
 import { useMapState } from '../composables/useMapState.js'
-import { calculateFeatureBounds } from '../utils/mapUtils.js'
+import { calculateFeatureBounds, calculateGeoJSONFileBounds } from '../utils/mapUtils.js'
 import { PROJECTION_CONFIG } from '../config/projections.js'
 import { TIMING } from '../config/timing.js'
 import MapControls from './MapControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
-import ProjectionTimeControls from './ProjectionTimeControls.vue'
+import ProjectionTimeControls from './ProjectionTimeControlsNew.vue'
 import SearchBar from './SearchBar.vue'
 
 // ============================================
@@ -496,6 +497,49 @@ const handleResetView = () => {
 // Reset bearing handler (delegates to composable)
 const handleResetBearing = () => {
   resetBearing()
+}
+
+// Zoom to full extent of the first GeoJSON data
+const handleZoomToExtent = async () => {
+  if (!map.value) return
+  
+  try {
+    // Get the first GeoJSON file path using default projection and year
+    const firstGeoJSONUrl = getDataFilePath(PROJECTION_CONFIG.DEFAULT_PROJECTION, PROJECTION_CONFIG.DEFAULT_YEAR)
+    
+    if (!firstGeoJSONUrl) {
+      console.error('[Map] Could not determine first GeoJSON file path')
+      return
+    }
+    
+    // Fetch the GeoJSON file
+    const response = await fetch(firstGeoJSONUrl)
+    if (!response.ok) {
+      console.error('[Map] Failed to fetch GeoJSON file:', response.statusText)
+      return
+    }
+    
+    const geojson = await response.json()
+    
+    // Calculate bounds from the GeoJSON
+    const bounds = calculateGeoJSONFileBounds(geojson)
+    
+    if (!bounds) {
+      console.error('[Map] Could not calculate bounds from GeoJSON')
+      return
+    }
+    
+    // Zoom to the calculated bounds with padding
+    map.value.fitBounds(bounds, {
+      padding: { top: 50, bottom: 50, left: 50, right: 50 },
+      duration: 1000,
+      maxZoom: 12 // Optional: limit max zoom level
+    })
+    
+    console.log('[Map] Zoomed to full extent of data')
+  } catch (error) {
+    console.error('[Map] Error zooming to extent:', error)
+  }
 }
 
 // Handle year change from time slider
