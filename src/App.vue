@@ -1,8 +1,10 @@
 <template>
+  <!-- <MapMinimal /> -->
   <Map />
 </template>
 
 <script setup>
+// import MapMinimal from "./components/MapMinimal.vue";
 import Map from "./components/Map.vue";
 
 // Hot module replacement for development

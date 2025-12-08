@@ -1,6 +1,33 @@
 <template>
   <div v-if="mapLoaded" class="projection-time-controls-wrapper">
     <div 
+      class="toggle-background"
+    >
+      <div 
+        class="toggle-container"
+        :class="{ 'with-scenarios': selectedProjection !== null }"
+      >
+        <div 
+          class="toggle-indicator"
+          :class="{ 'on-projected': selectedProjection !== null }"
+          :style="selectedProjection !== null ? getIndicatorStyle() : {}"
+        ></div>
+        <div 
+          class="scenario-toggle-section"
+        >
+          <span 
+            v-for="scenario in scenarios"
+            :key="scenario"
+            class="scenario-toggle-option"
+            :class="{ 'selected': selectedProjection === scenario }"
+            @click="selectScenario(scenario)"
+          >
+            {{ scenario }}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div 
       v-if="selectedProjection !== null"
       class="timeslider-container"
     >
@@ -46,12 +73,6 @@
           </div>
         </div>
         <div class="chart-svg-wrapper" @mouseleave="hoveredBar = null">
-          <!-- Load chart button (shown when chart not loaded) -->
-          <div v-if="!chartLoaded && !chartLoading" class="chart-load-placeholder">
-            <button @click="loadChartData" class="load-chart-button">
-              Load Chart
-            </button>
-          </div>
           <!-- Loading state -->
           <div v-if="chartLoading" class="chart-load-placeholder">
             <span class="loading-text">Loading chart data...</span>
@@ -160,33 +181,6 @@
             <span v-if="!isPlaying">▶ Play</span>
             <span v-else>⏸ Pause</span>
           </button>
-        </div>
-      </div>
-    </div>
-    <div 
-      class="toggle-background"
-    >
-      <div 
-        class="toggle-container"
-        :class="{ 'with-scenarios': selectedProjection !== null }"
-      >
-        <div 
-          class="toggle-indicator"
-          :class="{ 'on-projected': selectedProjection !== null }"
-          :style="selectedProjection !== null ? getIndicatorStyle() : {}"
-        ></div>
-        <div 
-          class="scenario-toggle-section"
-        >
-          <span 
-            v-for="scenario in scenarios"
-            :key="scenario"
-            class="scenario-toggle-option"
-            :class="{ 'selected': selectedProjection === scenario }"
-            @click="selectScenario(scenario)"
-          >
-            {{ scenario }}
-          </span>
         </div>
       </div>
     </div>
@@ -310,6 +304,8 @@ const isPlaying = ref(false)
 const animationInterval = ref(null)
 const chartLoaded = ref(false)
 const chartLoading = ref(false)
+const lastLoadedGlacierId = ref(null)
+const lastLoadedProjection = ref(null)
 
 const loadChartData = async () => {
   if (!props.selectedGlacier || !props.selectedGlacier['mapbox-id'] || !props.selectedProjection) {
@@ -642,11 +638,29 @@ const getYearLabelStyle = (year) => {
   }
 }
 
-// Watch for changes - reset chart loaded state when glacier or projection changes
+// Watch for changes - auto-load chart ONLY when glacier or projection changes (not on year changes)
 watch([() => props.selectedGlacier, () => props.selectedProjection], () => {
-  chartLoaded.value = false
-  chartData.value = []
-})
+  // Only reload if we have a glacier and projection
+  if (props.selectedGlacier && props.selectedProjection) {
+    const currentMapboxId = props.selectedGlacier?.['mapbox-id']
+    
+    // Only reload if glacier or projection actually changed (not on year changes)
+    if (currentMapboxId !== lastLoadedGlacierId.value || props.selectedProjection !== lastLoadedProjection.value) {
+      chartLoaded.value = false
+      chartData.value = []
+      lastLoadedGlacierId.value = currentMapboxId
+      lastLoadedProjection.value = props.selectedProjection
+      loadChartData()
+    }
+    // If same glacier and projection, don't reload - chart data is already loaded
+  } else {
+    // Clear chart if no glacier or projection
+    chartLoaded.value = false
+    chartData.value = []
+    lastLoadedGlacierId.value = null
+    lastLoadedProjection.value = null
+  }
+}, { immediate: true })
 
 // Reload data when metric changes
 watch([selectedMetric, showPercentageChange], () => {
@@ -658,34 +672,31 @@ watch([selectedMetric, showPercentageChange], () => {
 .projection-time-controls-wrapper {
   position: absolute;
   bottom: 20px;
-  left: 20px;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1001;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  /* outline: 2px solid red; */
+  align-items: center;
+  width: 400px;
+  outline: 2px solid red;
 }
 
 .toggle-background {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  /* background: #e5e5e5; */
-  /* border-radius: 10px; */
+  position: relative;
   width: 100%;
   height: 40px;
   padding: 0px;
   box-sizing: border-box;
-  transition: width 0.3s ease, right 0.3s ease, height 0.3s ease;
+  transition: width 0.3s ease, height 0.3s ease;
   pointer-events: none;
+  display: flex;
+  justify-content: center;
   /* outline: 2px solid blue; */
 }
 
 .toggle-container {
-  position: absolute;
-  left: 0px;
-  bottom: 0px;
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0;
@@ -701,19 +712,17 @@ watch([selectedMetric, showPercentageChange], () => {
 
 .toggle-container.with-scenarios {
   width: 400px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .timeslider-container {
-  position: absolute;
-  bottom: 40px;
-  left: 0;
-  right: 0;
+  position: relative;
+  width: 400px;
   background: white;
   border-radius: 10px;
   border: 1px solid #e5e5e5;
-  border-bottom: none;
+  border-top: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   /* clip-path: inset(0 0 10px 0); */
   box-sizing: border-box;
@@ -1052,9 +1061,9 @@ watch([selectedMetric, showPercentageChange], () => {
 }
 
 .toggle-indicator.on-projected {
-  border-radius: 0 0 10px 10px;
+  border-radius: 10px 10px 0 0;
   border: 1px solid #e5e5e5;
-  border-top: none;
+  border-bottom: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   /* clip-path: inset(-10px 0 10px 0); */
   z-index: 1002;
