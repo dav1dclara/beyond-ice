@@ -17,8 +17,8 @@ deploy_project:
       HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" -X POST "https://ikgcartoapps.ethz.ch/deploy/project" \
       -H "Content-Type: application/json" \
       -H "x-project-secret: ${CI_PROJECT_SECRET}" \
-      -d "{\"repository\": \"${CI_PROJECT_NAME}\", \"namespace\": \"${CI_PROJECT_NAMESPACE}\"}")
-      
+      -d "{\"repository\": \"${CI_PROJECT_NAME}\", \"namespace\": \"${CI_PROJECT_NAMESPACE}\", \"env\": {\"VITE_MAPBOX_TOKEN\": \"${VITE_MAPBOX_TOKEN}\"}}")
+
       if [ -f response.txt ]; then
         cat response.txt
       else
