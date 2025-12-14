@@ -1,11 +1,9 @@
 <template>
-  <!-- <MapMinimal /> -->
-  <Map />
+  <MapNew />
 </template>
 
 <script setup>
-// import MapMinimal from "./components/MapMinimal.vue";
-import Map from "./components/Map.vue";
+import MapNew from "./components/MapNew.vue";
 
 // Hot module replacement for development
 // This will ensure the page is fully (and not just partially) reloaded when the src/App.vue file is changed.

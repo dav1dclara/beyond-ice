@@ -40,6 +40,10 @@
       @projection-change="handleProjectionChange"
       @year-change="handleYearChange"
     />
+    
+    <div v-if="mapLoaded" class="debug-zoom">
+      Zoom: {{ currentZoom.toFixed(2) }}
+    </div>
   </div>
 </template>
 
@@ -48,11 +52,11 @@ import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useMapboxMap } from '../composables/useMapboxMap.js'
 import { useMapControls } from '../composables/useMapControls.js'
 import { useGlacierLayers } from '../composables/useGlacierLayers.js'
-import { useGlacierDataLoading } from '../composables/useGlacierDataLoading.js'
 import { useMapState } from '../composables/useMapState.js'
 import { calculateFeatureBounds, calculateGeoJSONFileBounds } from '../utils/mapUtils.js'
 import { PROJECTION_CONFIG } from '../config/projections.js'
 import { TIMING } from '../config/timing.js'
+import { TILESET_IDS } from '../config/mapbox.js'
 import MapControls from './MapControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
 import ProjectionTimeControls from './ProjectionTimeControlsNew.vue'
@@ -62,6 +66,11 @@ import SearchBar from './SearchBar.vue'
 // Template Refs
 // ============================================
 const mapboxCanvas = ref(null)
+
+// ============================================
+// Debug State
+// ============================================
+const currentZoom = ref(0)
 
 // ============================================
 // Layer State
@@ -98,106 +107,105 @@ const {
 
 // Use glacier layers composable
 const layerManager = useGlacierLayers(map)
-const { loadGeoJSONLayer, getOutlineLayerId } = layerManager
+const { getOutlineLayerId } = layerManager
 
-// Use glacier data loading composable with callbacks
-const { getDataFilePath, loadDataSmooth, loadDataFull } = useGlacierDataLoading(map, layerManager, {
-  onSelectionRestore: (selectedMapboxId, wasFilterActive) => {
-    restoreSelection(selectedMapboxId, wasFilterActive)
-  },
-  onFilterApply: (mapboxId) => {
-    applyFilterForFeature(mapboxId)
-  },
-  onHandlersSetup: () => {
-    setupLayerHandlers()
-  },
-  onVisualizationApply: () => {
-    if (visualization.value) {
-      updateLayerVisualization(visualization.value)
-    }
-  },
-  onSearchClear: () => {
-    // Only clear search results, not the search query when projection changes
-    showSearchResults.value = false
-    searchResults.value = []
-    // Don't clear searchQuery - preserve the glacier name in the search bar
+// Helper function to get feature ID from a feature (handles different property names)
+const getFeatureId = (feature) => {
+  // Try feature.id first (set by promoteId or from tileset)
+  if (feature.id !== undefined && feature.id !== null) {
+    return feature.id
   }
-})
-
-// Load data smoothly by updating existing source instead of recreating
-const loadProjectionDataSmooth = async (yearValue = null) => {
-  if (!map.value || !activeLayerId.value) return
   
-  const targetYear = yearValue !== null ? yearValue : currentYear.value
-  const selectedMapboxId = selectedGlacier.value?.['mapbox-id'] || selectedGlacierId.value
-  const wasFilterActive = isFilterActive.value
-  
-  loadDataSmooth({
-    layerId: activeLayerId.value,
-    projection: projection.value,
-    year: targetYear,
-    selectedMapboxId,
-    wasFilterActive
-  })
+  // Try various property names (order matters - try most likely first)
+  const props = feature.properties || {}
+  return props['mapbox-id'] || props['Id'] || props['id'] || null
 }
 
-// Load data for the current projection and year (full reload - used for initial load and scenario changes)
-const loadProjectionData = () => {
+// Function to get color based on feature selection (from MapNew.vue approach)
+// Uses ['id'] expression which matches the feature ID from the tileset
+// Since tileset was created with --use-attribute-for-id=mapbox-id, feature.id = mapbox-id
+// Also tries mapbox-id property as fallback in case promoteId doesn't work
+const getFillColor = () => {
+  if (selectedGlacier.value?.id !== null && selectedGlacier.value?.id !== undefined) {
+    const selectedId = selectedGlacier.value.id
+    return [
+      'case',
+      ['==', ['id'], selectedId],
+      '#FF6B6B', // Red color for selected feature (matched by feature ID)
+      ['==', ['get', 'mapbox-id'], selectedId],
+      '#FF6B6B', // Red color for selected feature (matched by mapbox-id property as fallback)
+      '#87CEEB'  // Default sky blue color
+    ]
+  }
+  return '#87CEEB' // Default sky blue color
+}
+
+const getOutlineColor = () => {
+  if (selectedGlacier.value?.id !== null && selectedGlacier.value?.id !== undefined) {
+    const selectedId = selectedGlacier.value.id
+    return [
+      'case',
+      ['==', ['id'], selectedId],
+      '#FF6B6B', // Red color for selected feature (matched by feature ID)
+      ['==', ['get', 'mapbox-id'], selectedId],
+      '#FF6B6B', // Red color for selected feature (matched by mapbox-id property as fallback)
+      '#87CEEB'  // Default sky blue color
+    ]
+  }
+  return '#87CEEB' // Default sky blue color
+}
+
+// Function to update layer colors
+const updateLayerColors = () => {
   if (!map.value || !activeLayerId.value) return
   
-  const selectedMapboxId = selectedGlacier.value?.['mapbox-id'] || selectedGlacierId.value
-  const wasFilterActive = isFilterActive.value
+  const outlineLayerId = getOutlineLayerId(activeLayerId.value)
   
-  // Preserve the selectedGlacier object and search query before loading new data
-  const preservedGlacier = selectedGlacier.value ? { ...selectedGlacier.value } : null
-  const preservedSearchQuery = searchQuery.value
-  
-  loadDataFull({
-    layerId: activeLayerId.value,
-    projection: projection.value,
-    year: currentYear.value,
-    selectedMapboxId,
-    wasFilterActive,
-    selectedGlacierId: selectedGlacierId.value
-  })
-  
-  // Restore the preserved glacier object if it existed
-  // The restoreSelection callback will update it if the feature is found in new data
-  if (preservedGlacier && selectedGlacier.value === null) {
-    selectedGlacier.value = preservedGlacier
+  if (map.value.getLayer(activeLayerId.value)) {
+    map.value.setPaintProperty(activeLayerId.value, 'fill-color', getFillColor())
   }
-  
-  // Restore the search query to preserve the glacier name in the search bar
-  if (preservedGlacier && preservedSearchQuery) {
-    searchQuery.value = preservedSearchQuery
-  }
-  
-  // Only clear selection state if there was no glacier selected before
-  if (selectedMapboxId === null || selectedMapboxId === undefined) {
-    selectedGlacier.value = null
-    selectedGlacierId.value = null
-    searchQuery.value = ''
+  if (map.value.getLayer(outlineLayerId)) {
+    map.value.setPaintProperty(outlineLayerId, 'line-color', getOutlineColor())
   }
 }
 
-// Helper function to query features from source (handles both geojson and vector sources)
+// Helper function to query features from source (handles vector tilesets)
 const querySourceFeatures = (sourceId) => {
   if (!map.value) return []
   
   const source = map.value.getSource(sourceId)
   if (!source) return []
   
-  // For vector sources, need to specify source-layer
+  // For vector sources, need to specify source-layer (year)
   if (source.type === 'vector') {
-    // EXPERIMENTAL: Use the source-layer name from tileset
-    const sourceLayerName = '2020-27q419'
-    return map.value.querySourceFeatures(sourceId, {
-      sourceLayer: sourceLayerName
-    })
+    // Validate currentYear before using it
+    if (currentYear.value === null || currentYear.value === undefined || isNaN(currentYear.value)) {
+      console.warn('[Map] querySourceFeatures: Invalid currentYear:', currentYear.value)
+      return []
+    }
+    
+    const sourceLayerName = currentYear.value.toString()
+    
+    // Validate source-layer name is not empty
+    if (!sourceLayerName || sourceLayerName === '') {
+      console.warn('[Map] querySourceFeatures: Empty source-layer name')
+      return []
+    }
+    
+    try {
+      return map.value.querySourceFeatures(sourceId, {
+        sourceLayer: sourceLayerName
+      })
+    } catch (error) {
+      // Silently handle errors - source-layer might not exist yet or source not fully loaded
+      // This is expected during initial load or when switching years
+      return []
+    }
   }
   
-  // For geojson sources, query normally
-  return map.value.querySourceFeatures(sourceId)
+  // Should not reach here if using tilesets only
+  console.warn('[Map] querySourceFeatures: Unexpected source type:', source.type)
+  return []
 }
 
 // Apply filter for a feature by mapbox-id (used to prevent flash of all features)
@@ -212,26 +220,31 @@ const applyFilterForFeature = (mapboxId) => {
     return
   }
   
+  // Ensure source is loaded before querying
+  const source = map.value.getSource(activeLayerId.value)
+  if (!source || (source.type === 'vector' && (!source.loaded || !source.loaded()))) {
+    // Source not ready yet, retry
+    setTimeout(() => applyFilterForFeature(mapboxId), 100)
+    return
+  }
+  
   try {
     // Query all features from the source
     const features = querySourceFeatures(activeLayerId.value)
     
-    // Find the feature with matching mapbox-id
+    // Find the feature with matching ID
     const matchingFeature = features.find(feature => {
-      const featureMapboxId = feature.id !== undefined && feature.id !== null
-        ? feature.id
-        : feature.properties?.['mapbox-id']
-      return featureMapboxId === mapboxId || featureMapboxId === parseInt(mapboxId)
+      const featureId = getFeatureId(feature)
+      return featureId === mapboxId || featureId === parseInt(mapboxId) || String(featureId) === String(mapboxId)
     })
     
     if (matchingFeature) {
       // Get the feature ID
-      const featureId = matchingFeature.id !== undefined && matchingFeature.id !== null
-        ? matchingFeature.id
-        : matchingFeature.properties?.['mapbox-id']
+      const featureId = getFeatureId(matchingFeature)
       
       if (featureId) {
-        // Apply filter immediately to prevent showing all features
+        // Apply filter - try different property names
+        // First try 'mapbox-id', then 'Id', then 'id'
         const filter = ['==', ['get', 'mapbox-id'], featureId]
         map.value.setFilter(activeLayerId.value, filter)
         const outlineLayerId = getOutlineLayerId(activeLayerId.value)
@@ -256,37 +269,64 @@ const restoreSelection = (mapboxId, wasFilterActive = false) => {
   const preservedName = selectedGlacier.value?.name || null
   const preservedSgiId = selectedGlacier.value?.['sgi-id'] || null
   
+  // Ensure source is loaded before querying
+  const source = map.value.getSource(activeLayerId.value)
+  if (!source || (source.type === 'vector' && (!source.loaded || !source.loaded()))) {
+    // Source not ready yet, retry
+    setTimeout(() => restoreSelection(mapboxId, wasFilterActive), 100)
+    return
+  }
+  
   try {
     // Query all features from the source
     const features = querySourceFeatures(activeLayerId.value)
     
-    // Find the feature with matching mapbox-id
+    // Find the feature with matching ID
     const matchingFeature = features.find(feature => {
-      const featureMapboxId = feature.id !== undefined && feature.id !== null
-        ? feature.id
-        : feature.properties?.['mapbox-id']
-      return featureMapboxId === mapboxId || featureMapboxId === parseInt(mapboxId)
+      const featureId = getFeatureId(feature)
+      return featureId === mapboxId || featureId === parseInt(mapboxId) || String(featureId) === String(mapboxId)
     })
     
     if (matchingFeature) {
       // Get the feature ID
-      const featureId = matchingFeature.id !== undefined && matchingFeature.id !== null
-        ? matchingFeature.id
-        : matchingFeature.properties?.['mapbox-id']
+      const featureId = getFeatureId(matchingFeature)
       
       if (featureId) {
         // Set feature state to selected
-        map.value.setFeatureState(
-          { source: activeLayerId.value, id: featureId },
-          { selected: true }
-        )
+        try {
+          map.value.setFeatureState(
+            { source: activeLayerId.value, id: featureId },
+            { selected: true }
+          )
+          console.log('[Map] Successfully restored feature state for ID:', featureId)
+        } catch (error) {
+          console.warn('[Map] Error restoring feature state:', error)
+          // Try with integer ID if it's a string number
+          if (typeof featureId === 'string' && !isNaN(featureId)) {
+            try {
+              const intId = parseInt(featureId)
+              map.value.setFeatureState(
+                { source: activeLayerId.value, id: intId },
+                { selected: true }
+              )
+              console.log('[Map] Successfully restored feature state with integer ID:', intId)
+            } catch (intError) {
+              console.warn('[Map] Also failed with integer ID:', intError)
+            }
+          }
+        }
+        
+        // Get mapbox-id from properties (try different property names)
+        const mapboxIdFromProps = matchingFeature.properties?.['mapbox-id'] || 
+                                  matchingFeature.properties?.['Id'] || 
+                                  featureId
         
         // Update selected glacier state, preserving name if feature doesn't have one
         selectedGlacier.value = {
           id: featureId,
           name: matchingFeature.properties?.name || preservedName || null,
           'sgi-id': matchingFeature.properties?.['sgi-id'] || preservedSgiId || null,
-          'mapbox-id': matchingFeature.properties?.['mapbox-id'] || featureId,
+          'mapbox-id': mapboxIdFromProps,
         }
         selectedGlacierId.value = featureId
         
@@ -346,57 +386,61 @@ const handleGlacierClick = (e) => {
   const feature = e.features[0]
   if (!feature || !activeLayerId.value) return
   
-  // Get the feature ID - use mapbox-id as the primary ID
-  // 1. feature.id (set by promoteId from mapbox-id)
-  // 2. feature.properties['mapbox-id'] (fallback)
+  // Ensure source is ready
+  const source = map.value.getSource(activeLayerId.value)
+  if (!source || (source.type === 'vector' && (!source.loaded || !source.loaded()))) {
+    console.warn('[Map] Source not ready when clicking glacier, ignoring click')
+    return
+  }
+  
+  // Get feature ID - use feature.id if available, otherwise use mapbox-id from properties
+  // Since tileset was created with --use-attribute-for-id=mapbox-id, feature.id should be mapbox-id
   const featureId = feature.id !== undefined && feature.id !== null 
     ? feature.id 
-    : (feature.properties?.['mapbox-id'] !== undefined && feature.properties?.['mapbox-id'] !== null
-      ? feature.properties['mapbox-id']
-      : null)
+    : (feature.properties?.['mapbox-id'] || null)
   
-  console.log('[Map] Feature clicked - ID:', featureId, 'on layer:', activeLayerId.value)
-  console.log('[Map] Feature properties:', feature.properties)
+  console.log('[Map] Feature clicked - ID:', featureId)
   console.log('[Map] Feature.id:', feature.id)
+  console.log('[Map] Feature properties mapbox-id:', feature.properties?.['mapbox-id'])
   
   if (!featureId) {
     console.error('[Map] Cannot select feature: no valid ID found')
     return
   }
   
-  // Clear previous selection
-  if (selectedGlacierId.value !== null && activeLayerId.value) {
-    map.value.setFeatureState(
-      { source: activeLayerId.value, id: selectedGlacierId.value },
-      { selected: false }
-    )
+  // Toggle selected feature (click again to deselect)
+  if (selectedGlacier.value?.id === featureId) {
+    selectedGlacier.value = null
+    selectedGlacierId.value = null
+    searchQuery.value = ''
+  } else {
+    selectedGlacier.value = {
+      id: featureId,
+      name: feature.properties?.name || null,
+      'sgi-id': feature.properties?.['sgi-id'] || null,
+      'mapbox-id': feature.properties?.['mapbox-id'] || featureId,
+    }
+    selectedGlacierId.value = featureId
+    // Update search bar with glacier name
+    searchQuery.value = feature.properties?.name || ''
   }
   
-  // Set new selection
-  map.value.setFeatureState(
-    { source: activeLayerId.value, id: featureId },
-    { selected: true }
-  )
+  console.log('[Map] Selected glacier ID:', selectedGlacier.value?.id)
   
-  // Update selected glacier state
-  selectedGlacier.value = {
-    id: featureId,
-    name: feature.properties?.name || null,
-    'sgi-id': feature.properties?.['sgi-id'] || null,
-    'mapbox-id': feature.properties?.['mapbox-id'] || null,
-  }
-  selectedGlacierId.value = featureId
-  
-  // Update search bar with glacier name
-  searchQuery.value = feature.properties?.name || ''
+  // Update layer colors
+  updateLayerColors()
   
   // If filter is active, update it to show only the newly selected glacier
-  if (isFilterActive.value && activeLayerId.value) {
-    const filter = ['==', ['get', 'mapbox-id'], featureId]
-    map.value.setFilter(activeLayerId.value, filter)
-    const outlineLayerId = getOutlineLayerId(activeLayerId.value)
-    if (map.value.getLayer(outlineLayerId)) {
-      map.value.setFilter(outlineLayerId, filter)
+  if (isFilterActive.value && activeLayerId.value && selectedGlacier.value) {
+    try {
+      const filter = ['==', ['get', 'mapbox-id'], featureId]
+      map.value.setFilter(activeLayerId.value, filter)
+      const outlineLayerId = getOutlineLayerId(activeLayerId.value)
+      if (map.value.getLayer(outlineLayerId)) {
+        map.value.setFilter(outlineLayerId, filter)
+      }
+    } catch (error) {
+      console.warn('[Map] Error applying filter:', error)
     }
   }
 }
@@ -405,151 +449,359 @@ const handleGlacierClick = (e) => {
 const handleMapClick = (e) => {
   if (!activeLayerId.value) return
   
+  // Ensure source is ready
+  const source = map.value.getSource(activeLayerId.value)
+  if (!source || (source.type === 'vector' && (!source.loaded || !source.loaded()))) {
+    return
+  }
+  
   // Check if the click was on a glacier feature
   const features = map.value.queryRenderedFeatures(e.point, {
     layers: [activeLayerId.value]
   })
   
   // If no glacier was clicked, clear the selection
-  if (features.length === 0 && selectedGlacierId.value !== null) {
-    map.value.setFeatureState(
-      { source: activeLayerId.value, id: selectedGlacierId.value },
-      { selected: false }
-    )
+  if (features.length === 0 && selectedGlacier.value !== null) {
     selectedGlacier.value = null
     selectedGlacierId.value = null
     searchQuery.value = ''
     
+    // Update layer colors
+    updateLayerColors()
+    
     // Reset filter to show all glaciers
     if (isFilterActive.value && activeLayerId.value && map.value) {
-      map.value.setFilter(activeLayerId.value, null)
-      const outlineLayerId = getOutlineLayerId(activeLayerId.value)
-      if (map.value.getLayer(outlineLayerId)) {
-        map.value.setFilter(outlineLayerId, null)
+      try {
+        map.value.setFilter(activeLayerId.value, null)
+        const outlineLayerId = getOutlineLayerId(activeLayerId.value)
+        if (map.value.getLayer(outlineLayerId)) {
+          map.value.setFilter(outlineLayerId, null)
+        }
+        isFilterActive.value = false
+      } catch (error) {
+        console.warn('[Map] Error resetting filter:', error)
       }
-      isFilterActive.value = false
     }
   }
 }
 
 // ============================================
-// EXPERIMENTAL: MAPBOX TILESET LOADING
-// TODO: DELETE THIS SECTION IF IT DOESN'T WORK
+// MAPBOX TILESET LOADING
 // ============================================
-// Load Mapbox tileset when map is ready - loads layer for current year
-watch(mapLoaded, (loaded) => {
-  if (loaded && map.value) {
-    const layerId = 'geojson-data'
-    const tilesetId = 'davidclara.b41ke80c' // Update with your tileset ID
-    
-    console.log('[Map] EXPERIMENTAL: Loading Mapbox tileset:', tilesetId)
-    
-    // Add vector tileset source (only once)
-    if (!map.value.getSource(layerId)) {
-      map.value.addSource(layerId, {
-        type: 'vector',
-        url: `mapbox://${tilesetId}`
-      })
-      console.log('[Map] EXPERIMENTAL: Added tileset source:', layerId)
+const layerId = 'glacier-tileset'
+
+// Function to add/update layers for a specific year and tileset
+const addLayersForYear = (year, preserveSelection = false) => {
+  if (!map.value || !activeLayerId.value) {
+    console.warn('[Map] Cannot add layers: map or activeLayerId missing')
+    return
+  }
+  
+  // Validate year
+  if (year === null || year === undefined || isNaN(year)) {
+    console.error('[Map] Invalid year value:', year)
+    return
+  }
+  
+  const sourceLayerName = year.toString()
+  const outlineId = getOutlineLayerId(layerId)
+  
+  // Verify source exists and is a vector source
+  const source = map.value.getSource(layerId)
+  if (!source) {
+    console.error('[Map] Source does not exist:', layerId)
+    return
+  }
+  
+  if (source.type !== 'vector') {
+    console.error('[Map] Source is not a vector source:', source.type)
+    return
+  }
+  
+  // Verify source-layer exists in tileset (if vectorLayers info is available)
+  if (source.vectorLayers && source.vectorLayers.length > 0) {
+    const availableLayers = source.vectorLayers.map(l => l.id)
+    if (!availableLayers.includes(sourceLayerName)) {
+      console.warn('[Map] Source-layer not found in tileset:', sourceLayerName)
+      console.warn('[Map] Available source-layers:', availableLayers)
+      // Don't return - still try to add the layer in case vectorLayers info is incomplete
+    }
+  }
+  
+  console.log('[Map] Adding layers for year:', year, 'source-layer:', sourceLayerName)
+  
+  // Preserve current paint properties if updating
+  const fillPaint = map.value.getLayer(layerId) 
+    ? map.value.getPaintProperty(layerId, 'fill-color')
+    : null
+  const fillOpacity = map.value.getLayer(layerId)
+    ? map.value.getPaintProperty(layerId, 'fill-opacity')
+    : null
+  
+  // Remove existing layers if they exist
+  if (map.value.getLayer(layerId)) {
+    map.value.removeLayer(layerId)
+  }
+  if (map.value.getLayer(outlineId)) {
+    map.value.removeLayer(outlineId)
+  }
+  
+  // Add fill layer for the selected year
+  try {
+    const layerConfig = {
+      id: layerId,
+      type: 'fill',
+      source: layerId,
+      'source-layer': sourceLayerName, // Required for vector sources
+      paint: {
+        'fill-color': fillPaint || getFillColor(),
+        'fill-opacity': fillOpacity || 0.6,
+      },
     }
     
-    // Function to add/update layers for a specific year
-    const addLayersForYear = (year) => {
-      const sourceLayerName = year.toString() // Use year as source-layer name
-      console.log('[Map] EXPERIMENTAL: Loading layer for year:', year, 'source-layer:', sourceLayerName)
-      
-      // Remove existing layers if they exist
-      if (map.value.getLayer(layerId)) {
-        map.value.removeLayer(layerId)
-      }
-      const outlineId = getOutlineLayerId(layerId)
-      if (map.value.getLayer(outlineId)) {
-        map.value.removeLayer(outlineId)
-      }
-      
-      // Add fill layer for the selected year
-      try {
-        map.value.addLayer({
-          id: layerId,
-          type: 'fill',
-          source: layerId,
-          'source-layer': sourceLayerName,
-          paint: {
-            'fill-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              '#4682B4', // Steel blue when selected
-              '#87CEEB', // Default sky blue
-            ],
-            'fill-opacity': 0.6,
-          },
-        })
-        console.log('[Map] EXPERIMENTAL: Added fill layer for year', year)
-      } catch (error) {
-        console.error('[Map] EXPERIMENTAL: Error adding fill layer:', error)
-      }
-      
-      // Add outline layer for the selected year
-      try {
-        map.value.addLayer({
-          id: outlineId,
-          type: 'line',
-          source: layerId,
-          'source-layer': sourceLayerName,
-          paint: {
-            'line-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              '#4682B4', // Steel blue when selected
-              '#87CEEB', // Default sky blue
-            ],
-            'line-width': 2,
-          },
-        })
-        console.log('[Map] EXPERIMENTAL: Added outline layer for year', year)
-      } catch (error) {
-        console.error('[Map] EXPERIMENTAL: Error adding outline layer:', error)
-      }
-      
-      activeLayerId.value = layerId
-      
-      // Wait for layer to be added before setting up handlers
-      map.value.once('idle', () => {
-        setupLayerHandlers()
-        
-        // Apply default visualization (Outlines Only)
-        setTimeout(() => {
-          if (visualization.value) {
-            updateLayerVisualization(visualization.value)
+    // Validate source-layer is set
+    if (!layerConfig['source-layer'] || layerConfig['source-layer'] === '') {
+      console.error('[Map] Cannot add layer: source-layer is missing or empty')
+      return
+    }
+    
+    map.value.addLayer(layerConfig)
+    console.log('[Map] Added fill layer for year', year, 'with source-layer:', sourceLayerName)
+  } catch (error) {
+    console.error('[Map] Error adding fill layer:', error)
+    console.error('[Map] Layer config:', { id: layerId, source: layerId, 'source-layer': sourceLayerName })
+    return
+  }
+  
+  // Add outline layer for the selected year
+  try {
+    const linePaint = map.value.getLayer(outlineId)
+      ? map.value.getPaintProperty(outlineId, 'line-color')
+      : null
+    const lineWidth = map.value.getLayer(outlineId)
+      ? map.value.getPaintProperty(outlineId, 'line-width')
+      : null
+    
+    const outlineLayerConfig = {
+      id: outlineId,
+      type: 'line',
+      source: layerId,
+      'source-layer': sourceLayerName, // Required for vector sources
+      paint: {
+        'line-color': linePaint || getOutlineColor(),
+        'line-width': lineWidth || 2,
+      },
+    }
+    
+    // Validate source-layer is set
+    if (!outlineLayerConfig['source-layer'] || outlineLayerConfig['source-layer'] === '') {
+      console.error('[Map] Cannot add outline layer: source-layer is missing or empty')
+      return
+    }
+    
+    map.value.addLayer(outlineLayerConfig)
+    console.log('[Map] Added outline layer for year', year, 'with source-layer:', sourceLayerName)
+  } catch (error) {
+    console.error('[Map] Error adding outline layer:', error)
+    console.error('[Map] Layer config:', { id: outlineId, source: layerId, 'source-layer': sourceLayerName })
+    return
+  }
+  
+  // Wait for layer to be added before setting up handlers and restoring selection
+  map.value.once('idle', () => {
+    setupLayerHandlers()
+    
+    // Restore selection if we had one - just update colors since selection state is preserved
+    if (preserveSelection && selectedGlacier.value) {
+      updateLayerColors()
+      const wasFilterActive = isFilterActive.value
+      if (wasFilterActive && selectedGlacier.value.id) {
+        try {
+          const filter = ['==', ['get', 'mapbox-id'], selectedGlacier.value.id]
+          map.value.setFilter(activeLayerId.value, filter)
+          const outlineLayerId = getOutlineLayerId(activeLayerId.value)
+          if (map.value.getLayer(outlineLayerId)) {
+            map.value.setFilter(outlineLayerId, filter)
           }
-        }, TIMING.VISUALIZATION_DELAY)
-      })
+        } catch (error) {
+          console.warn('[Map] Error restoring filter:', error)
+        }
+      }
     }
     
-    // Wait for source to load, then add layers for current year
-    const source = map.value.getSource(layerId)
-    if (source && source.loaded && source.loaded()) {
-      console.log('[Map] EXPERIMENTAL: Source already loaded, adding layers for year', currentYear.value)
-      addLayersForYear(currentYear.value)
+    // Apply current visualization
+    setTimeout(() => {
+      if (visualization.value) {
+        updateLayerVisualization(visualization.value)
+      }
+    }, TIMING.VISUALIZATION_DELAY)
+  })
+}
+
+// Function to load tileset for a projection
+const loadTilesetForProjection = (proj, preserveSelection = false) => {
+  if (!map.value || !mapLoaded.value) return
+  
+  const tilesetId = TILESET_IDS[proj]
+  if (!tilesetId) {
+    console.error('[Map] No tileset ID found for projection:', proj)
+    return
+  }
+  
+  console.log('[Map] Loading tileset for projection:', proj, 'tileset:', tilesetId)
+  
+  const source = map.value.getSource(layerId)
+  
+  // If source exists and is the same tileset, just update layers
+  if (source && source.type === 'vector' && source.url === `mapbox://${tilesetId}`) {
+    console.log('[Map] Tileset already loaded, updating layers for year', currentYear.value)
+    addLayersForYear(currentYear.value, preserveSelection)
+    return
+  }
+  
+  // Remove existing source and layers if switching tilesets
+  if (source) {
+    if (map.value.getLayer(layerId)) {
+      map.value.removeLayer(layerId)
+    }
+    const outlineId = getOutlineLayerId(layerId)
+    if (map.value.getLayer(outlineId)) {
+      map.value.removeLayer(outlineId)
+    }
+    map.value.removeSource(layerId)
+  }
+  
+  // Clear search results when switching projections
+  showSearchResults.value = false
+  searchResults.value = []
+  
+  // Add new tileset source
+  try {
+    map.value.addSource(layerId, {
+      type: 'vector',
+      url: `mapbox://${tilesetId}`,
+      promoteId: 'mapbox-id'  // Promote mapbox-id property to feature ID (matches test HTML)
+    })
+    console.log('[Map] Added tileset source:', layerId, 'for projection:', proj)
+  } catch (error) {
+    console.error('[Map] Error adding tileset source:', error)
+    return
+  }
+  
+  // Wait for source to load, then add layers
+  const waitForSource = () => {
+    const checkSource = map.value.getSource(layerId)
+    if (checkSource && checkSource.loaded && checkSource.loaded()) {
+      console.log('[Map] Tileset source loaded, adding layers for year', currentYear.value)
+      addLayersForYear(currentYear.value, preserveSelection)
     } else {
       // Wait for source to load
-      console.log('[Map] EXPERIMENTAL: Waiting for source to load...')
       map.value.once('sourcedata', (e) => {
         if (e.sourceId === layerId && e.isSourceLoaded) {
-          console.log('[Map] EXPERIMENTAL: Source loaded, adding layers for year', currentYear.value)
-          addLayersForYear(currentYear.value)
+          console.log('[Map] Tileset source loaded, adding layers for year', currentYear.value)
+          addLayersForYear(currentYear.value, preserveSelection)
         }
       })
       
       // Also try after a short delay in case the event doesn't fire
       setTimeout(() => {
-        const checkSource = map.value.getSource(layerId)
-        if (checkSource && checkSource.loaded && checkSource.loaded()) {
-          console.log('[Map] EXPERIMENTAL: Source loaded (timeout check), adding layers for year', currentYear.value)
-          addLayersForYear(currentYear.value)
+        const checkSourceAgain = map.value.getSource(layerId)
+        if (checkSourceAgain && checkSourceAgain.loaded && checkSourceAgain.loaded()) {
+          console.log('[Map] Tileset source loaded (timeout check), adding layers for year', currentYear.value)
+          addLayersForYear(currentYear.value, preserveSelection)
         }
       }, 1000)
     }
+  }
+  
+  waitForSource()
+}
+
+// Load tileset when map is ready
+watch(mapLoaded, (loaded) => {
+  if (loaded && map.value) {
+    activeLayerId.value = layerId
+    loadTilesetForProjection(projection.value, false)
+    
+    // Initialize zoom level
+    currentZoom.value = map.value.getZoom()
+    
+    // Watch for zoom changes
+    map.value.on('zoom', () => {
+      currentZoom.value = map.value.getZoom()
+    })
+    
+    // Also watch for moveend (catches programmatic zoom changes)
+    map.value.on('moveend', () => {
+      currentZoom.value = map.value.getZoom()
+    })
+    
+    // Suppress expected errors for tiles and vector sources
+    map.value.on('error', (e) => {
+      // Filter out expected tile loading errors (404s are normal for missing tiles)
+      if (e.error && e.error.status === 404) {
+        // Silently ignore 404 errors - they're expected when tiles don't exist yet
+        return
+      }
+      
+      // Filter out "sourceLayer parameter must be provided" errors
+      // These can occur when Mapbox internally queries vector sources
+      // They're often harmless and don't affect functionality
+      if (e.error && e.error.message && 
+          e.error.message.includes('sourceLayer parameter must be provided')) {
+        // Silently ignore - these are expected for vector sources during internal operations
+        return
+      }
+      
+      // Log other errors
+      if (e.error) {
+        console.error('[Map] Map error:', e.error)
+      }
+    })
+    
+    // Log available source-layers when tileset loads (for debugging)
+    map.value.on('sourcedata', (e) => {
+      if (e.sourceId === layerId && e.isSourceLoaded) {
+        const source = map.value.getSource(layerId)
+        if (source && source.vectorLayers) {
+          console.log('[Map] Available source-layers in tileset:', source.vectorLayers.map(l => l.id))
+        }
+      }
+    })
+  }
+})
+
+// Watch for projection changes and switch tilesets
+watch(projection, (newProjection) => {
+  if (!map.value || !mapLoaded.value) return
+  
+  console.log('[Map] Projection changed to:', newProjection)
+  
+  // Preserve selection when switching projections
+  const selectedMapboxId = selectedGlacier.value?.['mapbox-id'] || selectedGlacierId.value
+  const wasFilterActive = isFilterActive.value
+  const preserveSelection = selectedMapboxId !== null && selectedMapboxId !== undefined
+  
+  // Preserve glacier name and search query
+  const preservedGlacier = selectedGlacier.value ? { ...selectedGlacier.value } : null
+  const preservedSearchQuery = searchQuery.value
+  
+  // Load new tileset
+  loadTilesetForProjection(newProjection, preserveSelection)
+  
+  // Restore preserved values if feature not found in new tileset
+  if (preservedGlacier && selectedGlacier.value === null) {
+    selectedGlacier.value = preservedGlacier
+  }
+  if (preservedGlacier && preservedSearchQuery) {
+    searchQuery.value = preservedSearchQuery
+  }
+  
+  // Clear selection state if there was no glacier selected
+  if (selectedMapboxId === null || selectedMapboxId === undefined) {
+    selectedGlacier.value = null
+    selectedGlacierId.value = null
+    searchQuery.value = ''
   }
 })
 
@@ -557,102 +809,20 @@ watch(mapLoaded, (loaded) => {
 watch(currentYear, (newYear) => {
   if (!map.value || !mapLoaded.value || !activeLayerId.value) return
   
-  const layerId = activeLayerId.value
-  const source = map.value.getSource(layerId)
+  const source = map.value.getSource(activeLayerId.value)
   
   // Only update if using tileset (vector source)
   if (source && source.type === 'vector') {
-    console.log('[Map] EXPERIMENTAL: Year changed to', newYear, '- updating source-layer')
+    console.log('[Map] Year changed to', newYear, '- updating source-layer')
     
-    const sourceLayerName = newYear.toString()
-    const outlineId = getOutlineLayerId(layerId)
+    // Preserve selection when switching years
+    const selectedMapboxId = selectedGlacier.value?.['mapbox-id'] || selectedGlacierId.value
+    const wasFilterActive = isFilterActive.value
+    const preserveSelection = selectedMapboxId !== null && selectedMapboxId !== undefined
     
-    // Update source-layer for fill layer
-    if (map.value.getLayer(layerId)) {
-      // Remove and re-add with new source-layer (Mapbox doesn't support changing source-layer directly)
-      const fillPaint = map.value.getPaintProperty(layerId, 'fill-color')
-      const fillOpacity = map.value.getPaintProperty(layerId, 'fill-opacity')
-      
-      map.value.removeLayer(layerId)
-      map.value.addLayer({
-        id: layerId,
-        type: 'fill',
-        source: layerId,
-        'source-layer': sourceLayerName,
-        paint: {
-          'fill-color': fillPaint || [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            '#4682B4',
-            '#87CEEB',
-          ],
-          'fill-opacity': fillOpacity || 0.6,
-        },
-      })
-    }
-    
-    // Update source-layer for outline layer
-    if (map.value.getLayer(outlineId)) {
-      const linePaint = map.value.getPaintProperty(outlineId, 'line-color')
-      const lineWidth = map.value.getPaintProperty(outlineId, 'line-width')
-      
-      map.value.removeLayer(outlineId)
-      map.value.addLayer({
-        id: outlineId,
-        type: 'line',
-        source: layerId,
-        'source-layer': sourceLayerName,
-        paint: {
-          'line-color': linePaint || [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            '#4682B4',
-            '#87CEEB',
-          ],
-          'line-width': lineWidth || 2,
-        },
-      })
-    }
-    
-    // Re-setup handlers after layer update
-    map.value.once('idle', () => {
-      setupLayerHandlers()
-    })
+    addLayersForYear(newYear, preserveSelection)
   }
 })
-// ============================================
-// END OF EXPERIMENTAL MAPBOX TILESET CODE
-// ============================================
-
-// ============================================
-// ORIGINAL GEOJSON LOADING CODE (COMMENTED OUT)
-// ============================================
-// Load GeoJSON layer when map is ready
-// watch(mapLoaded, (loaded) => {
-//   if (loaded && map.value) {
-//     // Load initial data based on default projection
-//     const geojsonUrl = getDataFilePath(projection.value, currentYear.value)
-//     const layerId = 'geojson-data'
-//     
-//     activeLayer.value = loadGeoJSONLayer(geojsonUrl, layerId)
-//     activeLayerId.value = layerId
-//     
-//     // Wait for layer to be added before setting up handlers
-//     map.value.once('idle', () => {
-//       setupLayerHandlers()
-//       
-//       // Apply default visualization (Outlines Only)
-//       setTimeout(() => {
-//         if (visualization.value) {
-//           updateLayerVisualization(visualization.value)
-//         }
-//       }, TIMING.VISUALIZATION_DELAY)
-//     })
-//   }
-// })
-// ============================================
-// END OF COMMENTED OUT ORIGINAL CODE
-// ============================================
 
 // Setup event handlers for the active layer
 const setupLayerHandlers = () => {
@@ -685,7 +855,22 @@ const setupLayerHandlers = () => {
   })
   
   // Add click handler for the active layer
-  map.value.on('click', activeLayerId.value, handleGlacierClick)
+  // Wrap in try-catch to handle any errors during handler setup
+  try {
+    map.value.on('click', activeLayerId.value, handleGlacierClick)
+  } catch (error) {
+    console.warn('[Map] Error setting up click handler:', error)
+    // Retry after a short delay
+    setTimeout(() => {
+      if (map.value && map.value.getLayer(activeLayerId.value)) {
+        try {
+          map.value.on('click', activeLayerId.value, handleGlacierClick)
+        } catch (retryError) {
+          console.warn('[Map] Error retrying click handler setup:', retryError)
+        }
+      }
+    }, 100)
+  }
   
   // Setup map click handler (only once)
   if (!mapClickHandlerSetup.value) {
@@ -717,72 +902,62 @@ const handleResetBearing = () => {
   resetBearing()
 }
 
-// Zoom to full extent of the first GeoJSON data
+// Zoom to full extent of the current tileset data
 const handleZoomToExtent = async () => {
-  if (!map.value) return
+  if (!map.value || !activeLayerId.value) return
   
   try {
-    // Get the first GeoJSON file path using default projection and year
-    const firstGeoJSONUrl = getDataFilePath(PROJECTION_CONFIG.DEFAULT_PROJECTION, PROJECTION_CONFIG.DEFAULT_YEAR)
+    // Query features from the current tileset
+    const features = querySourceFeatures(activeLayerId.value)
     
-    if (!firstGeoJSONUrl) {
-      console.error('[Map] Could not determine first GeoJSON file path')
+    if (!features || features.length === 0) {
+      console.error('[Map] No features found in tileset to calculate bounds')
       return
     }
     
-    // Fetch the GeoJSON file
-    const response = await fetch(firstGeoJSONUrl)
-    if (!response.ok) {
-      console.error('[Map] Failed to fetch GeoJSON file:', response.statusText)
-      return
-    }
+    // Calculate bounds from all features
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
     
-    const geojson = await response.json()
+    features.forEach(feature => {
+      if (feature.geometry && feature.geometry.coordinates) {
+        const coords = feature.geometry.type === 'Polygon' 
+          ? feature.geometry.coordinates[0] 
+          : feature.geometry.coordinates
+        
+        coords.forEach(coord => {
+          const [lng, lat] = Array.isArray(coord[0]) ? coord : [coord]
+          minLng = Math.min(minLng, lng)
+          minLat = Math.min(minLat, lat)
+          maxLng = Math.max(maxLng, lng)
+          maxLat = Math.max(maxLat, lat)
+        })
+      }
+    })
     
-    // Calculate bounds from the GeoJSON
-    const bounds = calculateGeoJSONFileBounds(geojson)
-    
-    if (!bounds) {
-      console.error('[Map] Could not calculate bounds from GeoJSON')
+    if (minLng === Infinity) {
+      console.error('[Map] Could not calculate bounds from tileset features')
       return
     }
     
     // Zoom to the calculated bounds with padding
-    map.value.fitBounds(bounds, {
+    map.value.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
       padding: { top: 50, bottom: 50, left: 50, right: 50 },
       duration: 1000,
       maxZoom: 12 // Optional: limit max zoom level
     })
     
-    console.log('[Map] Zoomed to full extent of data')
+    console.log('[Map] Zoomed to full extent of tileset data')
   } catch (error) {
     console.error('[Map] Error zooming to extent:', error)
   }
 }
 
 // Handle year change from time slider
-// Debounce timer for year changes to ensure smooth transitions
-let yearChangeTimeout = null
-let pendingYearUpdate = null
-
+// The watcher on currentYear will handle updating the source-layer
 const handleYearChange = (newYear) => {
   currentYear.value = newYear
   console.log('[Map] Year changed to:', newYear)
-  
-  // Clear any pending updates
-  if (yearChangeTimeout) {
-    clearTimeout(yearChangeTimeout)
-  }
-  
-  // Store the pending year update
-  pendingYearUpdate = newYear
-  
-  // Debounce the data loading to prevent rapid updates during slider drag
-  yearChangeTimeout = setTimeout(() => {
-    // Reload data for the current projection
-    loadProjectionDataSmooth(pendingYearUpdate)
-    pendingYearUpdate = null
-  }, TIMING.YEAR_CHANGE_DEBOUNCE)
+  // The watcher on currentYear will handle the tileset source-layer update
 }
 
 // Handle visualization change from visualization selector
@@ -1033,10 +1208,11 @@ const resetToDefaultColors = () => {
 }
 
 // Handle projection change from projection controls
+// The watcher on projection will handle switching tilesets
 const handleProjectionChange = (newProjection) => {
   projection.value = newProjection
   console.log('[Map] Projection changed to:', newProjection)
-  loadProjectionData()
+  // The watcher on projection will handle the tileset switching
 }
 
 
@@ -1062,20 +1238,6 @@ const handleGlacierSelect = (result) => {
     return
   }
   
-  // Clear previous selection
-  if (selectedGlacierId.value !== null) {
-    map.value.setFeatureState(
-      { source: activeLayerId.value, id: selectedGlacierId.value },
-      { selected: false }
-    )
-  }
-  
-  // Set new selection
-  map.value.setFeatureState(
-    { source: activeLayerId.value, id: featureId },
-    { selected: true }
-  )
-  
   // Update selected glacier state
   selectedGlacier.value = {
     id: featureId,
@@ -1088,6 +1250,8 @@ const handleGlacierSelect = (result) => {
   // Update search bar with glacier name
   searchQuery.value = result.name || ''
   
+  // Update layer colors
+  updateLayerColors()
   
   // Zoom to the selected glacier
   const bounds = calculateFeatureBounds(result.feature)
@@ -1241,6 +1405,22 @@ onBeforeUnmount(() => {
   right: 0 !important;
   bottom: auto !important;
   left: auto !important;
+}
+
+.debug-zoom {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: bold;
+  pointer-events: none;
+  user-select: none;
 }
 
 </style>

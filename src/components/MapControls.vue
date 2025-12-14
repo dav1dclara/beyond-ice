@@ -1,16 +1,6 @@
 <template>
   <div class="map-controls-bar">
     <button
-      @click="$emit('reset-view')"
-      class="control-button"
-      title="Reset map to home view"
-    >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-      </svg>
-    </button>
-    <button
       @click="$emit('reset-bearing')"
       class="control-button"
       title="Reset map to north"
@@ -49,7 +39,7 @@ defineProps({
   },
 })
 
-defineEmits(['reset-view', 'reset-bearing', 'toggle', 'zoom-to-extent'])
+defineEmits(['reset-bearing', 'toggle', 'zoom-to-extent'])
 </script>
 
 <style scoped>

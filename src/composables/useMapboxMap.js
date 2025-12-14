@@ -23,24 +23,36 @@ export function useMapboxMap(mapboxCanvas) {
     }
 
     try {
+      // Hardcoded bounding box extents (Switzerland approximate bounds)
+      // Format: [[minLng, minLat], [maxLng, maxLat]]
+      const bounds = [
+        [5.9559, 45.8180], // Southwest corner (min longitude, min latitude)
+        [10.4922, 47.8084]  // Northeast corner (max longitude, max latitude)
+      ]
+
       // Initialize Mapbox map
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
-        // style: 'mapbox://styles/davidclara/cmix18ksx006q01qseipkbo1i', // Dark style (default)
         style: 'mapbox://styles/mapbox/light-v11', // Dark style (default)
         // config: {
         //   basemap: {
         //       theme: 'monochrome'
         //   }
         // },
-        center: [8.2275, 46.8182], // Center of Switzerland
-        zoom: 7,
+        // Use center/zoom as fallback, will be overridden by fitBounds
+        center: [8.2275, 46.8182], // Center of Switzerland (fallback)
+        zoom: 7, // Fallback zoom
         accessToken: MAPBOX_TOKEN,
         attributionControl: true,
       })
 
-      // Mark map as loaded when it's ready
+      // Mark map as loaded when it's ready and fit to bounds
       map.value.on('load', () => {
+        // Fit map to the hardcoded bounds
+        map.value.fitBounds(bounds, {
+          padding: { top: 50, bottom: 50, left: 50, right: 50 },
+          duration: 0 // No animation on initial load
+        })
         mapLoaded.value = true
       })
 

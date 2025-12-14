@@ -22,7 +22,6 @@
       type="text"
       placeholder="Search glaciers..."
       class="search-input"
-      ref="searchInput"
     />
     <button
       v-if="modelValue"
@@ -58,8 +57,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
 const props = defineProps({
   modelValue: {
     type: String,
@@ -81,25 +78,17 @@ const props = defineProps({
 
 const emit = defineEmits(['search', 'clear', 'update:modelValue', 'select'])
 
-const searchInput = ref(null)
-
 const handleInput = (e) => {
   emit('update:modelValue', e.target.value)
-  emit('search', e.target.value)
 }
 
 const handleSearch = () => {
-  if (props.modelValue.trim()) {
-    emit('search', props.modelValue)
-  }
+  emit('search', props.modelValue)
 }
 
 const handleClear = () => {
   emit('update:modelValue', '')
   emit('clear')
-  if (searchInput.value) {
-    searchInput.value.focus()
-  }
 }
 </script>
 
