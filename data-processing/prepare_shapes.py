@@ -2,6 +2,70 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 from tqdm import tqdm
+import subprocess
+import sys
+
+
+def create_tileset_for_scenario(geojson_dir, scenario_name, data_dir):
+    """Create a Mapbox tileset from GeoJSON files using tippecanoe."""
+    # Check if tippecanoe is installed
+    try:
+        subprocess.run(["tippecanoe", "--version"], 
+                      capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"  Warning: tippecanoe is not installed, skipping tileset creation")
+        print(f"  Install it with: brew install tippecanoe (on macOS)")
+        return False
+    
+    # Find all GeoJSON files in the output directory
+    geojson_files = sorted(geojson_dir.glob("*.geojson"))
+    
+    if not geojson_files:
+        print(f"  Warning: No GeoJSON files found in {geojson_dir}")
+        return False
+    
+    # Create tileset output directory
+    tileset_output_dir = data_dir / "processed" / "tilesets"
+    tileset_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create output file for this scenario
+    output_file = tileset_output_dir / f"{scenario_name.lower()}.mbtiles"
+    
+    print(f"\n  Creating tileset: {output_file}")
+    print(f"    Using {len(geojson_files)} GeoJSON files")
+    
+    # Build tippecanoe command
+    # Use -L option to specify layer name for each file: -L layer_name:file.geojson
+    # The layer name is the year (filename without extension)
+    cmd = [
+        "tippecanoe",
+        f"--output={output_file}",
+        f"--name={scenario_name} Tileset (All Years)",
+        f"--description={scenario_name} glacier data with separate layer for each year",
+        "--minimum-zoom=0",
+        "--maximum-zoom=14",
+        # "--base-zoom=8",  # Optimize detail for zoom 8 (higher = more detail preserved)
+        # "--simplification=4",  # Balance between detail and tile size (lower = more detail, but larger tiles)
+        # "--drop-densest-as-needed",  # Drop features when needed to stay within tile size limits
+        "--use-attribute-for-id=mapbox-id",  # Use 'mapbox-id' property as the feature ID
+        "-aI",  # Convert string IDs to numbers if possible
+        "--force"
+    ]
+    
+    # Add -L layer_name:file.geojson for each file
+    for geojson_file in geojson_files:
+        # Extract year from filename (e.g., "2020.geojson" -> "2020")
+        layer_name = geojson_file.stem
+        cmd.extend(["-L", f"{layer_name}:{geojson_file}"])
+    
+    try:
+        subprocess.run(cmd, check=True)
+        print(f"  ✓ Tileset created: {output_file}")
+        print(f"    Contains {len(geojson_files)} layers (one per year)")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"  ✗ Error running tippecanoe: {e}")
+        return False
 
 
 def main():
@@ -348,6 +412,10 @@ def main():
             print(f"    Valid volumes: {folder_valid_volumes}/{folder_total_volumes} ({folder_valid_volumes/folder_total_volumes*100:.1f}%)")
         if folder_total_areas > 0:
             print(f"    Matched areas: {folder_matched_areas}/{folder_total_areas} ({folder_matched_areas/folder_total_areas*100:.1f}%)")
+        
+        # Create tileset from the GeoJSON files
+        create_tileset_for_scenario(output_dir, scenario, data_dir)
+        
         print()
     
     # Assert that all files have the same column names

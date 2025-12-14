@@ -139,6 +139,18 @@
           </div>
         </div>
       </div>
+      <button
+        @click="togglePlay"
+        class="play-button"
+        :title="isPlaying ? 'Pause animation' : 'Play animation'"
+      >
+        <svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+        </svg>
+      </button>
       <div class="timeslider-container">
         <!-- <div class="year-markers" :class="{ expanded: isExpanded }">
           <div
@@ -148,16 +160,17 @@
             :style="getYearMarkerStyle(year)"
           ></div>
         </div> -->
-        <input
-          type="range"
-          :min="minYear"
-          :max="maxYear"
-          :step="step"
-          :value="currentYear"
-          @input="handleYearChange"
-          class="time-slider"
-        />
-        <div class="year-labels">
+        <div class="timeslider-wrapper">
+          <input
+            type="range"
+            :min="minYear"
+            :max="maxYear"
+            :step="step"
+            :value="currentYear"
+            @input="handleYearChange"
+            class="time-slider"
+          />
+          <div class="year-labels">
           <span
             v-for="year in yearLabels"
             :key="year"
@@ -165,6 +178,7 @@
           >
             {{ year }}
           </span>
+          </div>
         </div>
       </div>
     </div>
@@ -172,7 +186,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   mapLoaded: {
@@ -207,6 +221,11 @@ const props = defineProps({
 
 const emit = defineEmits(['projection-change', 'year-change'])
 
+// Play animation state
+const isPlaying = ref(false)
+let playInterval = null
+const playSpeed = 500 // milliseconds per year step
+
 const scenarios = ['SSP1-2.6', 'SSP2-4.5', 'SSP3-7.0', 'SSP5-8.5']
 
 const selectScenario = (scenario) => {
@@ -224,8 +243,66 @@ const toggleExpand = () => {
 
 const handleYearChange = (event) => {
   const year = parseInt(event.target.value)
+  // If user manually changes year while playing, stop animation
+  if (isPlaying.value) {
+    stopAnimation()
+  }
   emit('year-change', year)
 }
+
+// Toggle play/pause animation
+const togglePlay = () => {
+  if (isPlaying.value) {
+    stopAnimation()
+  } else {
+    startAnimation()
+  }
+}
+
+// Start the animation
+const startAnimation = () => {
+  if (isPlaying.value) return
+  
+  isPlaying.value = true
+  let currentYearValue = props.currentYear
+  
+  playInterval = setInterval(() => {
+    // Move to next year
+    currentYearValue += props.step
+    
+    // If we've reached the max year, stop
+    if (currentYearValue > props.maxYear) {
+      currentYearValue = props.maxYear
+      stopAnimation()
+      return
+    }
+    
+    // Emit the year change
+    emit('year-change', currentYearValue)
+  }, playSpeed)
+}
+
+// Stop the animation
+const stopAnimation = () => {
+  isPlaying.value = false
+  if (playInterval) {
+    clearInterval(playInterval)
+    playInterval = null
+  }
+}
+
+// Watch for reaching max year and stop animation
+watch(() => props.currentYear, (newYear) => {
+  // If we've reached the max year while playing, stop
+  if (newYear >= props.maxYear && isPlaying.value) {
+    stopAnimation()
+  }
+})
+
+// Cleanup on unmount
+onBeforeUnmount(() => {
+  stopAnimation()
+})
 
 const yearLabels = computed(() => {
   const labels = []
@@ -1185,6 +1262,36 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   margin-top: 2px;
 }
 
+.play-button {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+  color: #333;
+  padding: 0;
+  z-index: 1002;
+}
+
+.play-button:hover {
+  background: #f5f5f5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.play-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .timeslider-container {
   position: relative;
   width: calc(100% - var(--y-axis-width, 40px) - 8px);
@@ -1196,6 +1303,13 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   --thumb-width: 18px;
   --thumb-offset: calc(var(--thumb-width) / 2);
   /* outline: orange dashed 2px; */
+}
+
+.timeslider-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .year-markers {
