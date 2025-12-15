@@ -532,12 +532,18 @@ const querySourceFeatures = () => {
 // Load glacier search index from CSV
 const loadGlacierSearchIndex = async () => {
   try {
-    console.log('[MapNew] Loading glacier search index from public/data/mapping.csv')
-    const response = await fetch('public/data/mapping.csv')
+    // Use BASE_URL like the overall CSV files do (works in both dev and production)
+    const csvUrl = `${import.meta.env.BASE_URL}data/mapping.csv`
+    console.log('[MapNew] Loading glacier search index from', csvUrl)
+    const response = await fetch(csvUrl)
+    
     if (!response.ok) {
       console.error(`[MapNew] Could not load glacier search index: ${response.status} ${response.statusText}`)
+      console.error(`[MapNew] Tried path: ${csvUrl}`)
       return
     }
+    
+    console.log('[MapNew] Successfully loaded mapping.csv')
     const text = await response.text()
     const lines = text.split('\n').filter(line => line.trim())
     
@@ -639,6 +645,23 @@ const loadGlacierSearchIndex = async () => {
                 max_lng: maxLng,
                 max_lat: maxLat
               }
+            } else {
+              // Log if bounds couldn't be parsed for debugging
+              if (index.length < 5) { // Only log first few to avoid spam
+                console.warn(`[MapNew] Could not parse bounds for glacier ${mapboxId}:`, {
+                  minLng: values[minLngIdx],
+                  minLat: values[minLatIdx],
+                  maxLng: values[maxLngIdx],
+                  maxLat: values[maxLatIdx]
+                })
+              }
+            }
+          } else {
+            // Log if bounds columns not found
+            if (index.length < 5) {
+              console.warn(`[MapNew] Bounds columns not found. Indices:`, {
+                minLngIdx, minLatIdx, maxLngIdx, maxLatIdx
+              })
             }
           }
           
@@ -651,6 +674,12 @@ const loadGlacierSearchIndex = async () => {
     console.log(`[MapNew] ✓ Successfully loaded ${index.length} glaciers into search index`)
     if (index.length > 0) {
       console.log('[MapNew] Sample entry:', index[0])
+      // Check how many entries have bounds
+      const entriesWithBounds = index.filter(e => e.bounds).length
+      console.log(`[MapNew] Entries with bounds: ${entriesWithBounds} out of ${index.length}`)
+      if (entriesWithBounds === 0) {
+        console.warn('[MapNew] ⚠️ No entries have bounds! Check if CSV has min_lng, min_lat, max_lng, max_lat columns')
+      }
     }
   } catch (error) {
     console.error('[MapNew] Error loading glacier search index:', error)
