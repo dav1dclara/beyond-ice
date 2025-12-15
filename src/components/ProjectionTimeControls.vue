@@ -32,14 +32,14 @@
         </div>
         <div v-if="displayArea !== null" class="title-row title-area-volume">
           Area: {{ formatAreaVolume(displayArea) }} km²
-          <span v-if="areaChange2020 !== null" class="change-indicator">
-            ({{ formatChange(areaChange2020) }})
+          <span v-if="areaChange2020 !== null && currentYear !== 2020" class="change-indicator">
+            ({{ formatChange(areaChange2020) }} since 2020)
           </span>
         </div>
         <div v-if="displayVolume !== null" class="title-row title-area-volume">
           Volume: {{ formatAreaVolume(displayVolume) }} km³
-          <span v-if="volumeChange2020 !== null" class="change-indicator">
-            ({{ formatChange(volumeChange2020) }})
+          <span v-if="volumeChange2020 !== null && currentYear !== 2020" class="change-indicator">
+            ({{ formatChange(volumeChange2020) }} since 2020)
           </span>
         </div>
       </div>
@@ -97,12 +97,14 @@
                     getBarX(index),
                     getBarY(getChartValue(dataPoint)),
                     barWidth,
-                    Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
+                    getChartValue(dataPoint) === null ? 0.1 : Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
                   )"
-                  :fill="dataPoint.year === currentYear ? '#4682B4' : '#87CEEB'"
-                  @mouseenter="handleBarHover(dataPoint, index, $event)"
-                  @mousemove="handleBarHover(dataPoint, index, $event)"
-                  style="cursor: pointer;"
+                  :fill="dataPoint.year === currentYear ? COLORS.chart.barCurrentYear : COLORS.chart.barDefault"
+                  :opacity="getChartValue(dataPoint) === null ? 0 : 1"
+                  @mouseenter="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
+                  @mousemove="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
+                  @click="getChartValue(dataPoint) !== null && handleBarClick(dataPoint)"
+                  :style="{ cursor: getChartValue(dataPoint) !== null ? 'pointer' : 'default' }"
                 />
               </svg>
               <div class="chart-metric-toggle">
@@ -134,7 +136,7 @@
               {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit() }}
             </div>
             <div v-if="hoveredBar.change !== null && hoveredBar.change !== undefined" class="tooltip-change">
-              Change: {{ formatChange(hoveredBar.change) }}
+              {{ formatChange(hoveredBar.change) }} since 2020
             </div>
           </div>
         </div>
@@ -187,6 +189,7 @@
 
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { COLORS } from '../config/colors.js'
 
 const props = defineProps({
   mapLoaded: {
@@ -216,6 +219,14 @@ const props = defineProps({
   step: {
     type: Number,
     default: 2
+  },
+  map: {
+    type: Object,
+    default: null
+  },
+  getSourceId: {
+    type: Function,
+    default: null
   }
 })
 
@@ -250,6 +261,14 @@ const handleYearChange = (event) => {
   emit('year-change', year)
 }
 
+const handleBarClick = (dataPoint) => {
+  // If user clicks on a bar while playing, stop animation
+  if (isPlaying.value) {
+    stopAnimation()
+  }
+  emit('year-change', dataPoint.year)
+}
+
 // Toggle play/pause animation
 const togglePlay = () => {
   if (isPlaying.value) {
@@ -257,6 +276,26 @@ const togglePlay = () => {
   } else {
     startAnimation()
   }
+}
+
+// Check if selected glacier exists in a given year
+const glacierExistsInYear = (year) => {
+  if (!props.selectedGlacier || !props.selectedGlacier.id) {
+    return true // If no glacier selected, always return true (for overall view)
+  }
+  
+  const glacierId = props.selectedGlacier.id
+  const features = queryTilesetFeatures(props.selectedProjection, year)
+  
+  // Check if the glacier exists in this year
+  const exists = features.some(f => 
+    f.id === glacierId || 
+    String(f.id) === String(glacierId) ||
+    f.properties?.['mapbox-id'] === glacierId ||
+    String(f.properties?.['mapbox-id']) === String(glacierId)
+  )
+  
+  return exists
 }
 
 // Start the animation
@@ -267,15 +306,27 @@ const startAnimation = () => {
   let currentYearValue = props.currentYear
   
   playInterval = setInterval(() => {
-    // Move to next year
-    currentYearValue += props.step
+    // Calculate next year
+    const nextYear = currentYearValue + props.step
     
     // If we've reached the max year, stop
-    if (currentYearValue > props.maxYear) {
+    if (nextYear > props.maxYear) {
       currentYearValue = props.maxYear
       stopAnimation()
       return
     }
+    
+    // If a glacier is selected, check if it still exists in the next year
+    if (props.selectedGlacier && props.selectedGlacier.id) {
+      if (!glacierExistsInYear(nextYear)) {
+        // Glacier no longer exists, stop at current year (last year it exists)
+        stopAnimation()
+        return
+      }
+    }
+    
+    // Move to next year
+    currentYearValue = nextYear
     
     // Emit the year change
     emit('year-change', currentYearValue)
@@ -369,6 +420,157 @@ const chartLoading = ref(false)
 const lastLoadedGlacierId = ref(null)
 const lastLoadedProjection = ref(null)
 
+// Helper function to check if source is ready
+const isSourceReady = (projection) => {
+  if (!props.map || !props.getSourceId) return false
+  
+  const sourceId = props.getSourceId(projection)
+  const source = props.map.getSource(sourceId)
+  if (!source) return false
+  
+  // Check if source is loaded (for vector sources)
+  if (source.type === 'vector') {
+    // Check if source has loaded property or is ready
+    if (source.loaded && typeof source.loaded === 'function') {
+      return source.loaded()
+    }
+    // If no loaded function, assume it's ready if source exists
+    return true
+  }
+  
+  return false
+}
+
+// Helper function to query features from tileset for a specific year and projection
+const queryTilesetFeatures = (projection, year) => {
+  if (!props.map || !props.getSourceId) {
+    console.warn('[BarChart] Cannot query: map or getSourceId not available')
+    return []
+  }
+  
+  const sourceId = props.getSourceId(projection)
+  const source = props.map.getSource(sourceId)
+  if (!source) {
+    console.warn(`[BarChart] Source not found: ${sourceId} for projection: ${projection}`)
+    return []
+  }
+  
+  // For vector sources, need to specify source-layer (year)
+  if (source.type === 'vector') {
+    const sourceLayerName = year.toString()
+    try {
+      const features = props.map.querySourceFeatures(sourceId, {
+        sourceLayer: sourceLayerName
+      })
+      return features || []
+    } catch (error) {
+      console.warn(`[BarChart] Error querying features for ${projection}/${year}:`, error)
+      return []
+    }
+  }
+  
+  return []
+}
+
+// Helper to extract area/volume from feature properties
+const extractAreaVolume = (featureProps) => {
+  let areaValue = featureProps['Area (km2)'] ?? featureProps['area_km2'] ?? featureProps['Area'] ?? null
+  
+  if (areaValue === null || areaValue === undefined) {
+    const areaKey = Object.keys(featureProps).find(key => 
+      key.toLowerCase().includes('area') && 
+      (key.includes('km2') || key.includes('km²'))
+    )
+    areaValue = areaKey ? featureProps[areaKey] : 0
+  }
+  
+  const volumeValue = featureProps['Volume (km3)'] ?? 
+                     featureProps['volume_km3'] ?? 
+                     featureProps['Volume'] ??
+                     featureProps['volume'] ?? 0
+
+  return {
+    area: areaValue ?? 0,
+    volume: volumeValue ?? 0
+  }
+}
+
+// Load overall data from CSV (much faster and more reliable)
+const loadOverallDataFromCSV = async (projection) => {
+  const scenarioFolderMap = {
+    'SSP1-2.6': 'SSP126',
+    'SSP2-4.5': 'SSP245',
+    'SSP3-7.0': 'SSP370',
+    'SSP5-8.5': 'SSP585'
+  }
+  
+  const folder = scenarioFolderMap[projection]
+  if (!folder) {
+    console.warn(`[BarChart] Unknown projection: ${projection}`)
+    return null
+  }
+  
+  try {
+    const csvUrl = `${import.meta.env.BASE_URL}data/${folder}_overall_totals.csv`
+    const response = await fetch(csvUrl)
+    
+    if (!response.ok) {
+      console.error(`[BarChart] CSV not found at ${csvUrl}`)
+      return null
+    }
+    
+    const csvText = await response.text()
+    const lines = csvText.trim().split('\n')
+    const headers = lines[0].split(',')
+    
+    // Find column indices
+    const yearIndex = headers.indexOf('year')
+    const areaIndex = headers.findIndex(h => h.toLowerCase().includes('area'))
+    const volumeIndex = headers.findIndex(h => h.toLowerCase().includes('volume'))
+    
+    if (yearIndex === -1 || areaIndex === -1 || volumeIndex === -1) {
+      console.warn('[BarChart] CSV missing required columns')
+      return null
+    }
+    
+    // Parse CSV data
+    const data = []
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',')
+      const year = parseInt(values[yearIndex])
+      const area = parseFloat(values[areaIndex]) || 0
+      const volume = parseFloat(values[volumeIndex]) || 0
+      
+      if (!isNaN(year)) {
+        data.push({ year, area, volume })
+      }
+    }
+    
+    // Calculate percentage changes from 2020
+    const baseline2020 = data.find(d => d.year === 2020)
+    if (baseline2020) {
+      return data.map(d => ({
+        year: d.year,
+        area: d.area,
+        volume: d.volume,
+        areaChange: baseline2020.area > 0 ? ((d.area - baseline2020.area) / baseline2020.area) * 100 : null,
+        volumeChange: baseline2020.volume > 0 ? ((d.volume - baseline2020.volume) / baseline2020.volume) * 100 : null
+      }))
+    }
+    
+    return data.map(d => ({
+      year: d.year,
+      area: d.area,
+      volume: d.volume,
+      areaChange: null,
+      volumeChange: null
+    }))
+  } catch (error) {
+    console.warn('[BarChart] Error loading CSV:', error)
+    return null
+  }
+}
+
 const loadChartData = async () => {
   if (!props.selectedProjection) {
     chartData.value = []
@@ -381,168 +583,153 @@ const loadChartData = async () => {
   chartData.value = []
   chartLoaded.value = false
   chartLoading.value = true
+  
   try {
-    const scenarioFolderMap = {
-      'SSP1-2.6': 'SSP126',
-      'SSP2-4.5': 'SSP245',
-      'SSP3-7.0': 'SSP370',
-      'SSP5-8.5': 'SSP585'
-    }
-    
-    const folder = scenarioFolderMap[props.selectedProjection]
-    if (!folder) {
-      chartData.value = []
-      return
-    }
-
     const years = []
     for (let year = props.minYear; year <= props.maxYear; year += props.step) {
       years.push(year)
     }
 
-    const promises = years.map(async (year) => {
-      try {
-        const url = `${import.meta.env.BASE_URL}data/${folder}/${year}.geojson`
-        const response = await fetch(url)
-        const geojson = await response.json()
+    const glacierId = props.selectedGlacier?.id ?? null
+    const isOverallView = !glacierId
+    
+    // For overall view, ALWAYS use CSV (no fallback to tileset)
+    if (isOverallView) {
+      const csvData = await loadOverallDataFromCSV(props.selectedProjection)
+      
+      if (csvData && csvData.length > 0) {
+        // Filter to only years we need and sort
+        const filteredData = csvData
+          .filter(d => years.includes(d.year))
+          .sort((a, b) => a.year - b.year)
         
-        if (props.selectedGlacier && props.selectedGlacier['mapbox-id']) {
-          // Get data for selected glacier
-          const mapboxId = props.selectedGlacier['mapbox-id']
-          const feature = geojson.features.find(f => 
-            f.properties?.['mapbox-id'] === mapboxId || 
-            f.id === mapboxId
-          )
-          
-          if (feature) {
-            const props = feature.properties || {}
-            let areaValue = props['Area (km2)'] ?? props['area_km2'] ?? props['Area'] ?? null
-            
-            if (areaValue === null || areaValue === undefined) {
-              const areaKey = Object.keys(props).find(key => 
-                key.toLowerCase().includes('area') && 
-                (key.includes('km2') || key.includes('km²'))
-              )
-              areaValue = areaKey ? props[areaKey] : 0
-            }
-            
-            const volumeValue = props['Volume (km3)'] ?? 
-                               props['volume_km3'] ?? 
-                               props['Volume'] ??
-                               props['volume'] ?? 0
-            
-            const areaChangePercent = props['Area change (%)'] ?? null
-            const volumeChangePercent = props['Volume change (%)'] ?? null
-            
-            return {
-              year,
-              area: areaValue ?? 0,
-              volume: volumeValue ?? 0,
-              areaChange: areaChangePercent,
-              volumeChange: volumeChangePercent
-            }
-          }
-          return {
-            year,
-            area: 0,
-            volume: 0,
-            areaChange: null,
-            volumeChange: null
-          }
-        } else {
-          // Sum up all glaciers for overall view
-          let totalArea = 0
-          let totalVolume = 0
-
-          geojson.features.forEach(feature => {
-            const props = feature.properties || {}
-            let areaValue = props['Area (km2)'] ?? props['area_km2'] ?? props['Area'] ?? null
-            
-            if (areaValue === null || areaValue === undefined) {
-              const areaKey = Object.keys(props).find(key => 
-                key.toLowerCase().includes('area') && 
-                (key.includes('km2') || key.includes('km²'))
-              )
-              areaValue = areaKey ? props[areaKey] : 0
-            }
-            
-            const volumeValue = props['Volume (km3)'] ?? 
-                               props['volume_km3'] ?? 
-                               props['Volume'] ??
-                               props['volume'] ?? 0
-
-            totalArea += areaValue ?? 0
-            totalVolume += volumeValue ?? 0
-          })
-
-          // Calculate percentage change from 2020 for overall
-          // We'll need to load 2020 data for comparison
-          let area2020 = 0
-          let volume2020 = 0
-          try {
-            const url2020 = `${import.meta.env.BASE_URL}data/${folder}/2020.geojson`
-            const response2020 = await fetch(url2020)
-            const geojson2020 = await response2020.json()
-            
-            geojson2020.features.forEach(feature => {
-              const props = feature.properties || {}
-              let areaValue = props['Area (km2)'] ?? props['area_km2'] ?? props['Area'] ?? null
-              
-              if (areaValue === null || areaValue === undefined) {
-                const areaKey = Object.keys(props).find(key => 
-                  key.toLowerCase().includes('area') && 
-                  (key.includes('km2') || key.includes('km²'))
-                )
-                areaValue = areaKey ? props[areaKey] : 0
-              }
-              
-              const volumeValue = props['Volume (km3)'] ?? 
-                                 props['volume_km3'] ?? 
-                                 props['Volume'] ??
-                                 props['volume'] ?? 0
-
-              area2020 += areaValue ?? 0
-              volume2020 += volumeValue ?? 0
-            })
-          } catch (error) {
-            // If 2020 data can't be loaded, set to null
-          }
-
-          const areaChangePercent = area2020 > 0 ? ((totalArea - area2020) / area2020) * 100 : null
-          const volumeChangePercent = volume2020 > 0 ? ((totalVolume - volume2020) / volume2020) * 100 : null
-
-          return {
-            year,
-            area: totalArea,
-            volume: totalVolume,
-            areaChange: areaChangePercent,
-            volumeChange: volumeChangePercent
-          }
-        }
-      } catch (error) {
-        console.warn(`[BarChart] Error loading data for year ${year}:`, error)
-        return {
-          year,
-          area: 0,
-          volume: 0,
-          areaChange: null,
-          volumeChange: null
-        }
+        // Add small delay to ensure loading state is visible
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        chartData.value = filteredData
+        chartLoaded.value = true
+        chartLoading.value = false
+        return
       }
-    })
-
-    const results = await Promise.all(promises)
-    // Clear existing data before setting new data to prevent rendering old data
-    chartData.value = []
-    chartLoaded.value = false
-    // Set new data
-    chartData.value = results
-    chartLoaded.value = true
+      
+      // CSV not available - show error/empty state (no fallback)
+      console.error('[BarChart] CSV file not available for overall view. Please generate CSV files first.')
+      await new Promise(resolve => setTimeout(resolve, 200))
+      chartData.value = []
+      chartLoaded.value = false
+      chartLoading.value = false
+      return
+    }
+    
+    // For individual glacier, use tileset
+    if (!props.map || !props.getSourceId) {
+      chartData.value = []
+      chartLoaded.value = false
+      chartLoading.value = false
+      return
+    }
+    
+    // Wait for source to be ready (with retry logic)
+    let retries = 0
+    const maxRetries = 10
+    const retryDelay = 100
+    
+    while (!isSourceReady(props.selectedProjection) && retries < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, retryDelay))
+      retries++
+    }
+    
+    if (!isSourceReady(props.selectedProjection)) {
+      console.error(`[BarChart] Source not ready after ${maxRetries} retries for projection: ${props.selectedProjection}`)
+      chartData.value = []
+      chartLoaded.value = false
+      chartLoading.value = false
+      return
+    }
+    
+    const results = []
+    
+    // Process all years for individual glacier (overall view uses CSV only)
+    const processYears = async () => {
+      try {
+        // Process all years at once for individual glacier (fast)
+        const batchSize = years.length
+        
+        for (let i = 0; i < years.length; i += batchSize) {
+          const batch = years.slice(i, Math.min(i + batchSize, years.length))
+          
+          // Process batch synchronously
+          for (const year of batch) {
+            try {
+              const features = queryTilesetFeatures(props.selectedProjection, year)
+              
+              // Get data for selected glacier (overall view uses CSV only)
+              const feature = features.find(f => 
+                f.id === glacierId || 
+                String(f.id) === String(glacierId)
+              )
+              
+              if (feature) {
+                const featureProps = feature.properties || {}
+                const { area, volume } = extractAreaVolume(featureProps)
+                const areaChangePercent = featureProps['Area change (%)'] ?? null
+                const volumeChangePercent = featureProps['Volume change (%)'] ?? null
+                
+                results.push({
+                  year,
+                  area,
+                  volume,
+                  areaChange: areaChangePercent,
+                  volumeChange: volumeChangePercent,
+                  exists: true
+                })
+              } else {
+                // Glacier doesn't exist in this year - set values to null to hide the bar
+                results.push({
+                  year,
+                  area: null,
+                  volume: null,
+                  areaChange: null,
+                  volumeChange: null,
+                  exists: false
+                })
+              }
+            } catch (error) {
+              console.warn(`[BarChart] Error loading data for year ${year}:`, error)
+              results.push({
+                year,
+                area: null,
+                volume: null,
+                areaChange: null,
+                volumeChange: null,
+                exists: false
+              })
+            }
+          }
+          
+          // Update chart incrementally
+          chartData.value = [...results].sort((a, b) => a.year - b.year)
+        }
+        
+        // Final update - ensure sorted
+        chartData.value = results.sort((a, b) => a.year - b.year)
+        chartLoaded.value = true
+        chartLoading.value = false
+      } catch (error) {
+        console.error('[BarChart] Error in processYears:', error)
+        // Show what we have so far
+        chartData.value = results.sort((a, b) => a.year - b.year)
+        chartLoaded.value = true
+        chartLoading.value = false
+      }
+    }
+    
+    // Start processing
+    processYears()
   } catch (error) {
     console.error('[BarChart] Error loading chart data:', error)
     chartData.value = []
     chartLoaded.value = false
-  } finally {
     chartLoading.value = false
   }
 }
@@ -555,7 +742,12 @@ const getBarX = (index) => {
 
 // Get the chart value - always use absolute value
 const getChartValue = (dataPoint) => {
-  return selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
+  const value = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
+  // Return null if glacier doesn't exist (to hide the bar)
+  if (dataPoint.exists === false) {
+    return null
+  }
+  return value
 }
 
 // Get tooltip unit
@@ -566,6 +758,7 @@ const getTooltipUnit = () => {
 // Get min and max values for the chart
 const getChartMinMax = () => {
   if (chartData.value.length === 0) return { min: 0, max: 1 }
+  // Filter out null values (glaciers that don't exist) for y-axis calculation
   const values = chartData.value.map(d => getChartValue(d)).filter(v => v !== null && v !== undefined)
   if (values.length === 0) return { min: 0, max: 1 }
   return {
@@ -610,8 +803,12 @@ const getBarY = (value) => {
   if (chartData.value.length === 0) return chartHeight
   const max = yAxisMax.value // Use rounded max for scaling
   const range = max || 1
+  // If glacier doesn't exist (value is null), hide the bar completely
+  if (value === null || value === undefined) {
+    return chartHeight // Bar height will be 0
+  }
   // For 0 values, show a small bar at the bottom instead of no bar
-  if (value === 0 || value === null || value === undefined) {
+  if (value === 0) {
     return chartHeight - 2 // 2px bar height for zero values
   }
   return chartHeight - ((value / range) * chartHeight)
@@ -739,75 +936,107 @@ const loadAreaVolumeData = async () => {
     return
   }
 
-  try {
-    const scenarioFolderMap = {
-      'SSP1-2.6': 'SSP126',
-      'SSP2-4.5': 'SSP245',
-      'SSP3-7.0': 'SSP370',
-      'SSP5-8.5': 'SSP585'
-    }
-    
-    const folder = scenarioFolderMap[props.selectedProjection]
-    if (!folder) {
+  const isOverallView = !props.selectedGlacier || !props.selectedGlacier.id
+
+  // For overall view, use CSV data
+  if (isOverallView) {
+    try {
+      const csvData = await loadOverallDataFromCSV(props.selectedProjection)
+      
+      if (csvData && csvData.length > 0) {
+        // Find current year data
+        const currentYearData = csvData.find(d => d.year === props.currentYear)
+        const baseline2020 = csvData.find(d => d.year === 2020)
+        
+        if (currentYearData) {
+          displayArea.value = currentYearData.area
+          displayVolume.value = currentYearData.volume
+          areaChange2020.value = currentYearData.areaChange
+          volumeChange2020.value = currentYearData.volumeChange
+        } else {
+          displayArea.value = null
+          displayVolume.value = null
+          areaChange2020.value = null
+          volumeChange2020.value = null
+        }
+      } else {
+        displayArea.value = null
+        displayVolume.value = null
+        areaChange2020.value = null
+        volumeChange2020.value = null
+      }
+      return
+    } catch (error) {
+      console.error('[Title] Error loading overall data from CSV:', error)
       displayArea.value = null
       displayVolume.value = null
       areaChange2020.value = null
       volumeChange2020.value = null
       return
     }
+  }
 
-    // Load current year data
-    const currentYearUrl = `${import.meta.env.BASE_URL}data/${folder}/${props.currentYear}.geojson`
-    const currentYearResponse = await fetch(currentYearUrl)
-    const currentYearGeojson = await currentYearResponse.json()
+  // For individual glacier, use tileset
+  if (!props.map || !props.getSourceId) {
+    displayArea.value = null
+    displayVolume.value = null
+    areaChange2020.value = null
+    volumeChange2020.value = null
+    return
+  }
 
-    // Load 2020 data for comparison
-    const year2020 = 2020
-    const year2020Url = `${import.meta.env.BASE_URL}data/${folder}/${year2020}.geojson`
-    const year2020Response = await fetch(year2020Url)
-    const year2020Geojson = await year2020Response.json()
+  // Wait for source to be ready (with retry logic)
+  let retries = 0
+  const maxRetries = 10
+  const retryDelay = 100
+  
+  while (!isSourceReady(props.selectedProjection) && retries < maxRetries) {
+    await new Promise(resolve => setTimeout(resolve, retryDelay))
+    retries++
+  }
+  
+  if (!isSourceReady(props.selectedProjection)) {
+    console.warn(`[Title] Source not ready after ${maxRetries} retries for projection: ${props.selectedProjection}`)
+    displayArea.value = null
+    displayVolume.value = null
+    areaChange2020.value = null
+    volumeChange2020.value = null
+    return
+  }
+
+  try {
+    // Query current year data from tileset
+    const currentYearFeatures = queryTilesetFeatures(props.selectedProjection, props.currentYear)
+    
+    // Query 2020 data for comparison
+    const year2020Features = queryTilesetFeatures(props.selectedProjection, 2020)
 
     let currentArea = 0
     let currentVolume = 0
     let area2020 = 0
     let volume2020 = 0
 
-    if (props.selectedGlacier && props.selectedGlacier['mapbox-id']) {
-      // Get area and volume for selected glacier
-      const mapboxId = props.selectedGlacier['mapbox-id']
-      const currentFeature = currentYearGeojson.features.find(f => 
-        f.properties?.['mapbox-id'] === mapboxId || 
-        f.id === mapboxId
-      )
-      const feature2020 = year2020Geojson.features.find(f => 
-        f.properties?.['mapbox-id'] === mapboxId || 
-        f.id === mapboxId
-      )
+    // Get area and volume for selected glacier
+    const glacierId = props.selectedGlacier.id
+    const currentFeature = currentYearFeatures.find(f => 
+      f.id === glacierId || 
+      String(f.id) === String(glacierId)
+    )
+    const feature2020 = year2020Features.find(f => 
+      f.id === glacierId || 
+      String(f.id) === String(glacierId)
+    )
 
-      if (currentFeature) {
-        const current = getAreaVolumeFromFeature(currentFeature)
-        currentArea = current.area
-        currentVolume = current.volume
-      }
+    if (currentFeature) {
+      const current = getAreaVolumeFromFeature(currentFeature)
+      currentArea = current.area
+      currentVolume = current.volume
+    }
 
-      if (feature2020) {
-        const baseline = getAreaVolumeFromFeature(feature2020)
-        area2020 = baseline.area
-        volume2020 = baseline.volume
-      }
-    } else {
-      // Sum up total area and volume for all glaciers
-      currentYearGeojson.features.forEach(feature => {
-        const values = getAreaVolumeFromFeature(feature)
-        currentArea += values.area
-        currentVolume += values.volume
-      })
-
-      year2020Geojson.features.forEach(feature => {
-        const values = getAreaVolumeFromFeature(feature)
-        area2020 += values.area
-        volume2020 += values.volume
-      })
+    if (feature2020) {
+      const baseline = getAreaVolumeFromFeature(feature2020)
+      area2020 = baseline.area
+      volume2020 = baseline.volume
     }
 
     displayArea.value = currentArea
@@ -853,58 +1082,128 @@ const formatAreaVolume = (value) => {
   }
 }
 
-// Watch for changes - auto-load chart when glacier or projection changes (not on year changes)
-watch([() => props.selectedGlacier, () => props.selectedProjection], () => {
+// Helper to trigger chart loading
+const triggerChartLoad = async (force = false) => {
   // Only reload if we have a projection
-  if (props.selectedProjection) {
-    const currentMapboxId = props.selectedGlacier?.['mapbox-id'] ?? null
-    
-    // Only reload if glacier or projection actually changed (not on year changes)
-    const glacierChanged = currentMapboxId !== lastLoadedGlacierId.value
-    const projectionChanged = props.selectedProjection !== lastLoadedProjection.value
-    
-    if (glacierChanged || projectionChanged) {
-      // Clear chart immediately before loading
-      chartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      lastLoadedGlacierId.value = currentMapboxId
-      lastLoadedProjection.value = props.selectedProjection
-      loadChartData()
-    }
-    // If same glacier and projection, don't reload - chart data is already loaded
-  } else {
-    // Clear chart if no projection
+  if (!props.selectedProjection) {
+    return
+  }
+  
+  // For overall view, we don't need map to be loaded (uses CSV)
+  const isOverallView = !props.selectedGlacier || !props.selectedGlacier.id
+  if (!isOverallView && !props.mapLoaded) {
+    return
+  }
+  
+  const currentGlacierId = props.selectedGlacier?.id ?? null
+  
+  // Check if view type changed (overall <-> glacier) or glacier changed
+  const wasOverallView = lastLoadedGlacierId.value === null
+  const isNowOverallView = currentGlacierId === null
+  const viewTypeChanged = wasOverallView !== isNowOverallView
+  const glacierChanged = currentGlacierId !== lastLoadedGlacierId.value
+  const projectionChanged = props.selectedProjection !== lastLoadedProjection.value
+  
+  // IMPORTANT: Only reload if glacier or projection changed, NOT on year changes
+  const hasActualChange = viewTypeChanged || glacierChanged || projectionChanged
+  
+  // Only proceed if forced, or if there's an actual change
+  // If chartLoading is already true but there's no actual change, don't reload
+  if (!force && !hasActualChange) {
+    // No actual change detected - don't reload
+    // This prevents reloads when only year changes
+    return
+  }
+  
+  // Ensure loading state is shown
+  if (!chartLoading.value) {
     chartData.value = []
     chartLoaded.value = false
-    chartLoading.value = false
-    lastLoadedGlacierId.value = null
-    lastLoadedProjection.value = null
+    chartLoading.value = true
   }
+  
+  // Update tracking variables AFTER we've determined we should load
+  // This ensures the next change will be detected
+  lastLoadedGlacierId.value = currentGlacierId
+  lastLoadedProjection.value = props.selectedProjection
+  
+  // If projection changed, add a small delay to ensure source is ready
+  if (projectionChanged) {
+    await new Promise(resolve => setTimeout(resolve, 150))
+  }
+  
+  loadChartData()
+}
+
+// Watch for map loaded - trigger initial load when map becomes ready
+watch(() => props.mapLoaded, (loaded) => {
+  if (loaded && props.selectedProjection) {
+    // Map just became ready, trigger initial load
+    triggerChartLoad(true)
+  }
+})
+
+// Watch for changes - auto-load chart when glacier or projection changes (NOT on year changes)
+watch([() => props.selectedGlacier, () => props.selectedProjection], async (newValues, oldValues) => {
+  // Skip on initial immediate call if values haven't changed
+  if (oldValues === undefined) {
+    await triggerChartLoad()
+    return
+  }
+  
+  // Extract IDs for comparison (not object references)
+  const newGlacier = newValues[0]
+  const oldGlacier = oldValues[0]
+  const newGlacierId = newGlacier?.id ?? null
+  const oldGlacierId = oldGlacier?.id ?? null
+  const newProjection = newValues[1]
+  const oldProjection = oldValues[1]
+  
+  // Check if anything changed - compare IDs, not object references
+  // This prevents false positives when objects are recreated with same ID
+  const glacierIdChanged = newGlacierId !== oldGlacierId
+  const projectionChanged = newProjection !== oldProjection
+  
+  // Only proceed if glacier ID or projection actually changed (NOT on year changes)
+  if (!glacierIdChanged && !projectionChanged) {
+    // Nothing changed, don't reload - this prevents reloads on year changes
+    return
+  }
+  
+  // If glacier or projection changed, clear chart immediately and wait 0.5 seconds
+  // Clear chart immediately - make it blank
+  chartData.value = []
+  chartLoaded.value = false
+  chartLoading.value = true
+  
+  // Wait 0.5 seconds before loading new data (chart stays blank during this time)
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
+  await triggerChartLoad()
 }, { immediate: true })
 
 // Watch for metric changes - clear chart and show loading state
-watch(() => selectedMetric.value, () => {
+watch(() => selectedMetric.value, async () => {
   // Store current data before clearing
   const currentData = chartData.value.length > 0 ? [...chartData.value] : null
   
-  // Clear chart data and show loading state
+  // Clear chart data immediately - make it blank
   chartData.value = []
   chartLoaded.value = false
   chartLoading.value = true
   hoveredBar.value = null
   
-  // Add small delay before showing chart again (data already has both area and volume)
-  setTimeout(() => {
-    if (props.selectedProjection && currentData) {
-      // Restore the data - it already contains both area and volume
-      chartData.value = currentData
-      chartLoading.value = false
-      chartLoaded.value = true
-    } else {
-      chartLoading.value = false
-    }
-  }, 150)
+  // Wait 0.5 seconds before showing chart again (chart stays blank during this time)
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
+  if (props.selectedProjection && currentData) {
+    // Restore the data - it already contains both area and volume
+    chartData.value = currentData
+    chartLoading.value = false
+    chartLoaded.value = true
+  } else {
+    chartLoading.value = false
+  }
 })
 
 // Watch for changes to load area/volume data
@@ -1218,6 +1517,7 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   flex: 1;
   height: 100%;
   display: block;
+  /* outline: green solid 2px; */
 }
 
 .chart-svg-container .chart-metric-toggle {
@@ -1235,7 +1535,7 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
 
 .chart-tooltip {
   position: absolute;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(117, 116, 116, 0.85);
   color: white;
   padding: 8px 12px;
   border-radius: 6px;
@@ -1264,10 +1564,10 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
 
 .play-button {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
-  width: 40px;
-  height: 40px;
+  left: 16px;
+  bottom: 11px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1275,7 +1575,7 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); */
   transition: all 0.2s;
   color: #333;
   padding: 0;
@@ -1284,7 +1584,8 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
 
 .play-button:hover {
   background: #f5f5f5;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: scale(1.05);
+  border-color: #d0d0d0;
 }
 
 .play-button svg {
@@ -1294,9 +1595,10 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
 
 .timeslider-container {
   position: relative;
-  width: calc(100% - var(--y-axis-width, 40px) - 8px);
+  margin-left: calc(var(--y-axis-width, 40px) + 24px);
+  margin-right: 8px;
+  width: calc(100% - var(--y-axis-width, 40px) - 24px);
   padding-bottom: 0;
-  margin-left: calc(var(--y-axis-width, 40px) + 8px);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1408,7 +1710,7 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #87CEEB;
+  background: var(--color-glacier-default);
   border: 2px solid white;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -1418,7 +1720,7 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #87CEEB;
+  background: var(--color-glacier-default);
   border: 2px solid white;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);

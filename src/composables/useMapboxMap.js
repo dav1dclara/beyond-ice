@@ -23,35 +23,24 @@ export function useMapboxMap(mapboxCanvas) {
     }
 
     try {
-      // Hardcoded bounding box extents (Switzerland approximate bounds)
-      // Format: [[minLng, minLat], [maxLng, maxLat]]
-      const bounds = [
-        [5.9559, 45.8180], // Southwest corner (min longitude, min latitude)
-        [10.4922, 47.8084]  // Northeast corner (max longitude, max latitude)
-      ]
-
-      // Initialize Mapbox map
+      // Initialize Mapbox map starting at zoom level 0
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
-        style: 'mapbox://styles/mapbox/light-v11', // Dark style (default)
-        // config: {
-        //   basemap: {
-        //       theme: 'monochrome'
-        //   }
-        // },
-        // Use center/zoom as fallback, will be overridden by fitBounds
-        center: [8.2275, 46.8182], // Center of Switzerland (fallback)
-        zoom: 7, // Fallback zoom
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [8.3818, 46.3621], // Center of Switzerland
+        zoom: 0, // Start at zoom level 0
         accessToken: MAPBOX_TOKEN,
-        attributionControl: true,
+        attributionControl: false, // Attribution shown in imprint modal instead
       })
 
-      // Mark map as loaded when it's ready and fit to bounds
+      // Mark map as loaded when it's ready and fly in to zoom level 8
       map.value.on('load', () => {
-        // Fit map to the hardcoded bounds
-        map.value.fitBounds(bounds, {
-          padding: { top: 50, bottom: 50, left: 50, right: 50 },
-          duration: 0 // No animation on initial load
+        // Fly in from zoom 0 to zoom 8 with a smooth animation
+        map.value.flyTo({
+          center: [8.3818, 46.3621], // Center of Switzerland
+          zoom: 8,
+          duration: 3000, // 3 second animation
+          essential: true // Animation is essential and won't be interrupted
         })
         mapLoaded.value = true
       })
