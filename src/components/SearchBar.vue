@@ -57,6 +57,8 @@
 </template>
 
 <script setup>
+import { ref, watch } from 'vue'
+
 const props = defineProps({
   modelValue: {
     type: String,
@@ -78,8 +80,21 @@ const props = defineProps({
 
 const emit = defineEmits(['search', 'clear', 'update:modelValue', 'select'])
 
+let searchTimeout = null
+
 const handleInput = (e) => {
-  emit('update:modelValue', e.target.value)
+  const value = e.target.value
+  emit('update:modelValue', value)
+  
+  // Clear previous timeout
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  
+  // Debounce search - trigger after 300ms of no typing
+  searchTimeout = setTimeout(() => {
+    emit('search', value)
+  }, 300)
 }
 
 const handleSearch = () => {
@@ -115,7 +130,7 @@ const handleClear = () => {
 }
 
 .searchbar-wrapper:focus-within {
-  border-color: #87CEEB;
+  border-color: var(--color-glacier-default);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 

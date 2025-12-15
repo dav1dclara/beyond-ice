@@ -35,6 +35,16 @@ def create_mapping_csv(input_path, output_path):
         return
     
     print(f"Features: {len(gdf)}")
+    print(f"Original CRS: {gdf.crs}")
+    
+    # Convert to WGS84 (EPSG:4326) if not already - Mapbox uses WGS84 for coordinates
+    if gdf.crs is None:
+        print("Warning: No CRS defined, assuming WGS84")
+        gdf.set_crs('EPSG:4326', inplace=True)
+    elif gdf.crs.to_string() != 'EPSG:4326':
+        print(f"Converting from {gdf.crs} to EPSG:4326 (WGS84)...")
+        gdf = gdf.to_crs('EPSG:4326')
+        print("✓ CRS conversion complete")
     
     # Find the sgi_id column (could be 'sgi-id', 'sgi_id', or similar)
     sgi_id_col = None
@@ -67,14 +77,30 @@ def create_mapping_csv(input_path, output_path):
     # Integers are more efficient for Mapbox's setFeatureState and feature queries
     gdf['mapbox-id'] = range(1, len(gdf) + 1)
     
+    # Extract bounds (extents) for each glacier
+    print("Extracting bounds for each glacier...")
+    bounds_list = []
+    for idx, row in gdf.iterrows():
+        bounds = row.geometry.bounds  # Returns (minx, miny, maxx, maxy)
+        bounds_list.append({
+            'min_lng': bounds[0],  # minx (longitude)
+            'min_lat': bounds[1],  # miny (latitude)
+            'max_lng': bounds[2],  # maxx (longitude)
+            'max_lat': bounds[3]   # maxy (latitude)
+        })
+    
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Create mapping DataFrame with mapbox-id, sgi_id, and name
+    # Create mapping DataFrame with mapbox-id, sgi_id, name, and bounds
     mapping_df = pd.DataFrame({
         'mapbox-id': gdf['mapbox-id'],
         'sgi_id': gdf[sgi_id_col],
-        'name': gdf[name_col]
+        'name': gdf[name_col],
+        'min_lng': [b['min_lng'] for b in bounds_list],
+        'min_lat': [b['min_lat'] for b in bounds_list],
+        'max_lng': [b['max_lng'] for b in bounds_list],
+        'max_lat': [b['max_lat'] for b in bounds_list]
     })
     
     # Save mapping to CSV
