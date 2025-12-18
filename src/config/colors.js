@@ -30,10 +30,23 @@ export const COLORS = {
   // Visualization colors (for percentage changes)
   visualization: {
     negative: '#1E3A8A',     // Dark blue for negative changes
-    negativeLight: '#3B82F6', // Light blue for -25%
-    neutral: '#FFFFFF',      // White for 0%
-    positiveLight: '#F87171', // Light red for +25%
-    positive: '#DC2626',     // Red for +50%
+    negativeLight: '#3B82F6', // Light blue for -50%
+    neutral: '#E6F3FF',       // Very light blue for 0%
     missing: '#E5E5E5',      // Gray for missing data
+  },
+  
+  // Bivariate choropleth colors
+  // Area change (X-axis): controls red/orange dimension
+  // Volume change (Y-axis): controls blue/cyan dimension
+  // Creates a smooth, perceptually uniform color space with clear distinction between quadrants
+  bivariate: {
+    // Low area change, Low volume change (minimal change in both)
+    lowLow: '#E8F4F8',      // Very light blue-gray - minimal change
+    // High area change, Low volume change (high area loss, low volume loss)
+    highLow: '#E74C3C',      // Bright red - emphasizes area loss
+    // Low area change, High volume change (low area loss, high volume loss)
+    lowHigh: '#3498DB',      // Bright blue - emphasizes volume loss
+    // High area change, High volume change (high loss in both)
+    highHigh: '#2C3E50',     // Dark slate blue-gray - emphasizes combined high loss
   }
 }

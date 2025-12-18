@@ -6,7 +6,113 @@
       <MapLoadOverlay v-if="!mapLoaded" @load="initializeMap" />
     </Transition>
     
-    <div v-if="mapLoaded" class="top-left-controls">
+    <!-- Mode toggle in top-left corner -->
+    <div v-if="mapLoaded" class="mode-toggle">
+      <button
+        @click="mapMode = 'static'"
+        :class="{ active: mapMode === 'static' }"
+        class="mode-toggle-button"
+        title="Static mode"
+      >
+        Static
+      </button>
+      <button
+        @click="mapMode = 'dynamic'"
+        :class="{ active: mapMode === 'dynamic' }"
+        class="mode-toggle-button"
+        title="Dynamic mode"
+      >
+        Dynamic
+      </button>
+      <button
+        @click="mapMode = 'comparison'"
+        :class="{ active: mapMode === 'comparison' }"
+        class="mode-toggle-button"
+        title="Comparison mode"
+      >
+        Comparison
+      </button>
+    </div>
+    
+    <!-- Visualization controls below the toggle button (only in dynamic mode) -->
+    <div v-if="mapLoaded && mapMode === 'dynamic'" class="visualization-controls-wrapper">
+      <VisualizationControls 
+        v-model="visualization"
+        @update:modelValue="handleVisualizationChange"
+      />
+    </div>
+    
+    <!-- Year toggle bar in static mode -->
+    <div v-if="mapLoaded && mapMode === 'static'" class="year-toggle-bar">
+      <div class="year-toggle-header">
+        <span class="year-toggle-title">Years</span>
+        <button
+          @click="toggleAllYears"
+          class="year-toggle-all-button"
+          :title="allYearsVisible ? 'Hide all' : 'Show all'"
+        >
+          {{ allYearsVisible ? 'Hide All' : 'Show All' }}
+        </button>
+      </div>
+      <div class="year-toggle-options">
+        <label
+          v-for="year in decadeYears"
+          :key="year"
+          class="year-toggle-option"
+          :class="{ 'active': visibleYears.has(year) }"
+        >
+          <input
+            type="checkbox"
+            :checked="visibleYears.has(year)"
+            @change="toggleYear(year)"
+            class="year-toggle-checkbox"
+          />
+          <div 
+            class="year-toggle-color-indicator"
+            :style="{ backgroundColor: getYearColor(year) }"
+          ></div>
+          <span class="year-toggle-label">{{ year }}</span>
+        </label>
+      </div>
+    </div>
+    
+    <!-- Tooltip for glacier properties -->
+    <div 
+      v-if="tooltip.visible && tooltip.feature" 
+      class="glacier-tooltip"
+      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
+    >
+      <div class="tooltip-content">
+        <div v-if="tooltip.feature.properties?.name" class="tooltip-title">
+          {{ tooltip.feature.properties.name }}
+        </div>
+        <div class="tooltip-properties">
+          <div v-if="tooltip.feature.properties?.['sgi-id']" class="tooltip-row">
+            <span class="tooltip-label">SGI ID:</span>
+            <span class="tooltip-value">{{ tooltip.feature.properties['sgi-id'] }}</span>
+          </div>
+          <div v-if="tooltip.feature.properties?.['Area change (%)'] !== undefined" class="tooltip-row">
+            <span class="tooltip-label">Area Change:</span>
+            <span class="tooltip-value">{{ tooltip.feature.properties['Area change (%)']?.toFixed(1) }}%</span>
+          </div>
+          <div v-if="tooltip.feature.properties?.['Volume change (%)'] !== undefined" class="tooltip-row">
+            <span class="tooltip-label">Volume Change:</span>
+            <span class="tooltip-value">{{ tooltip.feature.properties['Volume change (%)']?.toFixed(1) }}%</span>
+          </div>
+          <div v-if="tooltip.feature.properties?.Area !== undefined" class="tooltip-row">
+            <span class="tooltip-label">Area:</span>
+            <span class="tooltip-value">{{ tooltip.feature.properties.Area?.toFixed(2) }} km²</span>
+          </div>
+          <div v-if="tooltip.feature.properties?.Volume !== undefined" class="tooltip-row">
+            <span class="tooltip-label">Volume:</span>
+            <span class="tooltip-value">{{ tooltip.feature.properties.Volume?.toFixed(2) }} km³</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Map controls in top-right corner -->
+    <div v-if="mapLoaded" class="top-right-controls">
       <button
         @click="handleZoomToExtent"
         class="control-button"
@@ -155,6 +261,7 @@
       :step="PROJECTION_CONFIG.YEAR_STEP"
       :map="map"
       :get-source-id="getSourceId"
+      :is-static-mode="mapMode === 'static'"
       @projection-change="handleProjectionChange"
       @year-change="handleYearChange"
     />
@@ -171,6 +278,7 @@ import { COLORS } from '../config/colors.js'
 import SearchBar from './SearchBar.vue'
 import ProjectionTimeControls from './ProjectionTimeControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
+import VisualizationControls from './VisualizationControls.vue'
 
 // Template ref for map container
 const mapboxCanvas = ref(null)
@@ -188,11 +296,81 @@ const isSatellite = ref(false)
 const showImprintModal = ref(false)
 
 
-// Visualization state (kept for map color logic, always 'uniform')
+// Visualization state
 const visualization = ref('uniform')
+
+// Map mode state: 'static', 'dynamic', or 'comparison'
+const mapMode = ref('dynamic')
+
+// Year visibility state for static mode
+const decadeYears = []
+for (let y = PROJECTION_CONFIG.MIN_YEAR; y <= PROJECTION_CONFIG.MAX_YEAR; y += 10) {
+  decadeYears.push(y)
+}
+const visibleYears = ref(new Set(decadeYears)) // All years visible by default
+
+// Computed to check if all years are visible
+const allYearsVisible = computed(() => {
+  return decadeYears.every(year => visibleYears.value.has(year))
+})
+
+// Toggle year visibility in static mode
+const toggleYear = (year) => {
+  if (visibleYears.value.has(year)) {
+    visibleYears.value.delete(year)
+  } else {
+    visibleYears.value.add(year)
+  }
+  
+  // Recreate all layers to maintain proper ordering
+  if (map.value && mapMode.value === 'static') {
+    createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
+// Toggle all years visibility
+const toggleAllYears = () => {
+  if (allYearsVisible.value) {
+    // Hide all years
+    visibleYears.value.clear()
+  } else {
+    // Show all years
+    visibleYears.value = new Set(decadeYears)
+  }
+  
+  // Recreate all layers to maintain proper ordering
+  if (map.value && mapMode.value === 'static') {
+    createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
+// Tooltip state
+const tooltip = ref({
+  visible: false,
+  feature: null,
+  x: 0,
+  y: 0
+})
+
+// Tooltip delay timer
+let tooltipTimer = null
+const TOOLTIP_DELAY = 500 // milliseconds
+
+// Handle visualization change
+const handleVisualizationChange = (mode) => {
+  visualization.value = mode
+  // Update the layer colors
+  updateLayerColors()
+}
 
 // Cleanup on unmount
 onBeforeUnmount(() => {
+  // Clear tooltip timer
+  if (tooltipTimer) {
+    clearTimeout(tooltipTimer)
+    tooltipTimer = null
+  }
+  
   // Clear year change timer
   clearYearChangeTimer()
   
@@ -379,115 +557,89 @@ const showSearchResults = ref(false)
 
 const glacierSearchIndex = ref([])
 
-// Helper function to get color based on percentage change
-// Returns a color from blue (negative) to white (0) to red (positive)
-const getColorForPercentage = (propertyName) => {
-  return [
-    'case',
-    ['has', propertyName], // Check if property exists
-    [
-      'case',
-      ['==', ['get', propertyName], null], COLORS.visualization.missing,
-      [
-        'interpolate',
-        ['linear'],
-        ['get', propertyName],
-        -50, COLORS.visualization.negative,
-        -25, COLORS.visualization.negativeLight,
-        0, COLORS.visualization.neutral,
-        25, COLORS.visualization.positiveLight,
-        50, COLORS.visualization.positive
-      ]
-    ],
-    COLORS.visualization.missing
-  ]
-}
-
-// Function to get color based on feature state and visualization mode
+// Function to get color based on visualization mode
 const getFillColor = () => {
-  const selectedId = selectedGlacier.value?.id
-  
-  // Base color expression based on visualization mode
-  let baseColor
-  
   if (visualization.value === 'area-change') {
-    baseColor = getColorForPercentage('Area change (%)')
+    // Simple color expression for area change
+    return [
+      'interpolate',
+      ['linear'],
+      ['get', 'Area change (%)'],
+      -100, COLORS.visualization.negative,
+      -50, COLORS.visualization.negativeLight,
+      0, COLORS.visualization.neutral
+    ]
   } else if (visualization.value === 'volume-change') {
-    baseColor = getColorForPercentage('Volume change (%)')
-  } else {
-    // Uniform visualization
-    baseColor = COLORS.glacier.default
-  }
-  
-  // In satellite mode, non-selected glaciers are white, selected keeps its color
-  if (isSatellite.value) {
-    if (selectedId !== null && selectedId !== undefined) {
-      return [
-        'case',
-        ['==', ['id'], selectedId],
-        COLORS.glacier.selected,
-        '#FFFFFF'
-      ]
-    }
-    return '#FFFFFF'
-  }
-  
-  // If a feature is selected, highlight it in bright blue
-  if (selectedId !== null && selectedId !== undefined) {
+    // Simple color expression for volume change
+    return [
+      'interpolate',
+      ['linear'],
+      ['get', 'Volume change (%)'],
+      -100, COLORS.visualization.negative,
+      -50, COLORS.visualization.negativeLight,
+      0, COLORS.visualization.neutral
+    ]
+  } else if (visualization.value === 'bivariate') {
+    // Bivariate choropleth: Bilinear interpolation using X (area) and Y (volume) as coordinates
+    // Normalize X and Y to 0-1 range (0 = 0% change, 1 = -100% change)
+    // Corner colors (as RGB):
+    // lowLow (X=0, Y=0):   rgb(232, 244, 248) = #E8F4F8 (very light blue-gray)
+    // highLow (X=1, Y=0):  rgb(231, 76, 60)  = #E74C3C (bright red)
+    // lowHigh (X=0, Y=1):  rgb(52, 152, 219) = #3498DB (bright blue)
+    // highHigh (X=1, Y=1): rgb(44, 62, 80)   = #2C3E50 (dark slate)
+    // Formula: R = (1-X)(1-Y)*R_ll + X(1-Y)*R_hl + (1-X)Y*R_lh + XY*R_hh
+    // Calculate everything inline without let expressions
     return [
       'case',
-      ['==', ['id'], selectedId],
-      COLORS.glacier.selected,
-      baseColor
+      ['all', ['has', 'Area change (%)'], ['has', 'Volume change (%)']],
+      [
+        'rgb',
+        // Red channel: bilinear interpolation (all inline)
+        [
+          '+',
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 232],  // (1-X)(1-Y) * 232
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 231],            // X(1-Y) * 231
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 52],              // (1-X)Y * 52
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 44]                        // XY * 44
+        ],
+        // Green channel: bilinear interpolation (all inline)
+        [
+          '+',
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 244],  // (1-X)(1-Y) * 244
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 76],             // X(1-Y) * 76
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 152],             // (1-X)Y * 152
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 62]                          // XY * 62
+        ],
+        // Blue channel: bilinear interpolation (all inline)
+        [
+          '+',
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 248],  // (1-X)(1-Y) * 248
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 60],             // X(1-Y) * 60
+          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 219],            // (1-X)Y * 219
+          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 80]                         // XY * 80
+        ]
+      ],
+      COLORS.visualization.missing
     ]
+  } else {
+    // Uniform visualization - default blue
+    return COLORS.glacier.default
   }
-  
-  return baseColor
 }
 
 const getOutlineColor = () => {
-  const selectedId = selectedGlacier.value?.id
-  
-  // For outlines, use a darker version of the fill or default
-  let baseColor
-  
-  if (visualization.value === 'area-change' || visualization.value === 'volume-change') {
-    // For percentage visualizations, use a darker outline
-    baseColor = '#333333'
-  } else {
-    baseColor = COLORS.glacier.outline
-  }
-  
-  // In satellite mode, all glaciers have blue outlines, selected glacier has selected color outline
-  if (isSatellite.value) {
-    if (selectedId !== null && selectedId !== undefined) {
-      return [
-        'case',
-        ['==', ['id'], selectedId],
-        COLORS.glacier.selected,
-        COLORS.glacier.default
-      ]
-    }
-    return COLORS.glacier.default
-  }
-  
-  // If a feature is selected, highlight it in bright blue
-  if (selectedId !== null && selectedId !== undefined) {
-    return [
-      'case',
-      ['==', ['id'], selectedId],
-      COLORS.glacier.selected,
-      baseColor
-    ]
-  }
-  
-  return baseColor
+  // Use same color as fill for outline
+  return getFillColor()
+}
+
+// Get outline width
+const getOutlineWidth = () => {
+  return 2
 }
 
 
 // Function to get fill opacity based on basemap mode
 const getFillOpacity = () => {
-  // In satellite mode, use full opacity for better visibility
   return isSatellite.value ? 0.8 : 0.6
 }
 
@@ -495,14 +647,30 @@ const getFillOpacity = () => {
 const updateLayerColors = () => {
   const layerId = currentLayerId.value
   const outlineId = currentOutlineId.value
-  if (map.value && map.value.getLayer(layerId)) {
-    map.value.setPaintProperty(layerId, 'fill-color', getFillColor())
-    map.value.setPaintProperty(layerId, 'fill-opacity', getFillOpacity())
+  
+  if (!map.value) {
+    return
   }
-  if (map.value && map.value.getLayer(outlineId)) {
-    map.value.setPaintProperty(outlineId, 'line-color', getOutlineColor())
+  
+  if (map.value.getLayer(layerId)) {
+    const fillColor = getFillColor()
+    const fillOpacity = getFillOpacity()
+    map.value.setPaintProperty(layerId, 'fill-color', fillColor)
+    map.value.setPaintProperty(layerId, 'fill-opacity', fillOpacity)
+  }
+  
+  // Update outline layer filter and color to show only selected glacier
+  if (map.value.getLayer(outlineId)) {
+    const filter = selectedFeatureId.value 
+      ? ['==', ['id'], selectedFeatureId.value]
+      : ['literal', false]
+    map.value.setFilter(outlineId, filter)
+    // Update outline color to match fill
+    const outlineColor = getFillColor()
+    map.value.setPaintProperty(outlineId, 'line-color', outlineColor)
   }
 }
+
 
 // Helper function to query features from source (handles vector tilesets)
 const querySourceFeatures = () => {
@@ -1004,6 +1172,56 @@ const loadTilesetSource = (proj) => {
 }
 
 // Function to create layers for a projection and year
+// Function to get color for a specific year in static mode (gradient from 2020 to 2100)
+const getYearColor = (year) => {
+  const minYear = PROJECTION_CONFIG.MIN_YEAR
+  const maxYear = PROJECTION_CONFIG.MAX_YEAR
+  // Normalize year to 0-1 range (0 = 2020, 1 = 2100)
+  const normalized = (year - minYear) / (maxYear - minYear)
+  
+  // Interpolate between lightest blue (#E6F3FF) and darkest blue (#1E3A8A)
+  // Using the same colors as area change visualization
+  const lightBlue = { r: 230, g: 243, b: 255 } // #E6F3FF
+  const darkBlue = { r: 30, g: 58, b: 138 }    // #1E3A8A
+  
+  const r = Math.round(lightBlue.r + (darkBlue.r - lightBlue.r) * normalized)
+  const g = Math.round(lightBlue.g + (darkBlue.g - lightBlue.g) * normalized)
+  const b = Math.round(lightBlue.b + (darkBlue.b - lightBlue.b) * normalized)
+  
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// Helper to get layer ID for a specific year in static mode
+const getStaticLayerId = (proj, year) => `glacier-layer-${proj}-${year}`
+
+// Clean up all static mode layers for a specific projection
+const cleanupStaticLayers = (proj) => {
+  if (!map.value) return
+  
+  // Remove all static layers for this projection
+  for (let year = PROJECTION_CONFIG.MIN_YEAR; year <= PROJECTION_CONFIG.MAX_YEAR; year += 10) {
+    const layerId = getStaticLayerId(proj, year)
+    if (map.value.getLayer(layerId)) {
+      map.value.removeLayer(layerId)
+    }
+  }
+}
+
+// Clean up all static mode layers for all projections
+const cleanupAllStaticLayers = () => {
+  if (!map.value) return
+  
+  // Get all available projections
+  const projections = Object.keys(TILESET_IDS).filter(proj => TILESET_IDS[proj] !== null)
+  
+  // Remove all static layers for all projections
+  projections.forEach(proj => {
+    cleanupStaticLayers(proj)
+  })
+  
+  console.log('[MapNew] Cleaned up all static mode layers')
+}
+
 const createLayersForProjectionYear = (proj, year) => {
   if (!map.value) return
 
@@ -1017,6 +1235,65 @@ const createLayersForProjectionYear = (proj, year) => {
     console.warn('[MapNew] Source not found for projection:', proj, '- it may still be loading')
     return
   }
+
+  // If in static mode, create overlay layers for every 10 years
+  if (mapMode.value === 'static') {
+    // Clean up any existing static layers
+    cleanupStaticLayers(proj)
+    
+    // Also clean up regular layers
+    if (map.value.getLayer(layerId)) {
+      map.value.removeLayer(layerId)
+    }
+    if (map.value.getLayer(outlineId)) {
+      map.value.removeLayer(outlineId)
+    }
+    
+    // Create layers for each decade year (2020, 2030, ..., 2100)
+    // Order: 2020 at bottom, 2100 on top
+    const decadeYears = []
+    for (let y = PROJECTION_CONFIG.MIN_YEAR; y <= PROJECTION_CONFIG.MAX_YEAR; y += 10) {
+      decadeYears.push(y)
+    }
+    
+    // Add layers in order: 2020 at bottom, 2100 on top
+    // Only add layers for visible years
+    // Add from 2100 to 2020, each before the previous one
+    // This ensures 2020 is drawn first (bottom) and 2100 is drawn last (top)
+    let lastAddedLayerId = undefined
+    for (let i = decadeYears.length - 1; i >= 0; i--) {
+      const decadeYear = decadeYears[i]
+      
+      // Only create layer if year is visible
+      if (!visibleYears.value.has(decadeYear)) {
+        continue
+      }
+      
+      const staticLayerId = getStaticLayerId(proj, decadeYear)
+      const yearColor = getYearColor(decadeYear)
+      
+      // Insert before the last added layer (which is a later year)
+      map.value.addLayer({
+        id: staticLayerId,
+        type: 'fill',
+        source: sourceId,
+        'source-layer': decadeYear.toString(),
+        paint: {
+          'fill-color': yearColor,
+          'fill-opacity': 0.7, // Slightly transparent so layers below show through
+        },
+      }, lastAddedLayerId)
+      
+      lastAddedLayerId = staticLayerId
+    }
+    
+    console.log('[MapNew] Static mode layers created for projection:', proj, 'years:', decadeYears)
+    return
+  }
+
+  // Dynamic mode: create single layer for current year
+  // Clean up static layers if they exist
+  cleanupStaticLayers(proj)
 
   // Clean up handlers before removing layers
   if (handlerLayerId.value === layerId) {
@@ -1062,15 +1339,19 @@ const createLayersForProjectionYear = (proj, year) => {
     },
   })
 
-  // Add outline layer
+  // Add outline layer for selected glaciers only (filtered by selectedFeatureId)
   map.value.addLayer({
     id: outlineId,
     type: 'line',
     source: sourceId,
     'source-layer': sourceLayerName,
+    filter: selectedFeatureId.value 
+      ? ['==', ['id'], selectedFeatureId.value]
+      : ['literal', false], // Hide if nothing selected
     paint: {
-      'line-color': getOutlineColor(),
-      'line-width': 2,
+      'line-color': getFillColor(), // Match fill color
+      'line-width': 3,
+      'line-opacity': 1,
     },
   })
 
@@ -1106,24 +1387,44 @@ const updateLayersForCurrentYear = () => {
       // Recreate layers for current projection with new year (source is already loaded, so this is fast)
       createLayersForProjectionYear(proj, year)
       
-      // Update colors
-      updateLayerColors()
+      // Wait for map to be idle to ensure new source-layer data is loaded
+      if (map.value) {
+        // Wait for the new source-layer data to be available
+        map.value.once('idle', () => {
+          // Small delay to ensure tiles are fully loaded
+          setTimeout(() => {
+            // Force color update by re-setting paint properties with fresh expressions
+            const layerId = getLayerId(proj)
+            
+            if (map.value.getLayer(layerId)) {
+              // Get fresh color expression (will use new source-layer data)
+              const fillColor = getFillColor()
+              const fillOpacity = getFillOpacity()
+              // Force update by setting to a different value first, then back
+              map.value.setPaintProperty(layerId, 'fill-color', COLORS.glacier.default)
+              setTimeout(() => {
+                map.value.setPaintProperty(layerId, 'fill-color', fillColor)
+                map.value.setPaintProperty(layerId, 'fill-opacity', fillOpacity)
+              }, 10)
+            }
+            // Update all colors
+            updateLayerColors()
+            
+            // Restore selection if we had a selected feature ID
+            if (preservedFeatureId !== null && preservedFeatureId !== undefined) {
+              setTimeout(() => {
+                restoreSelectionByFeatureId(preservedFeatureId)
+              }, 200)
+            }
+          }, 100)
+        })
+      }
       
-  // Restore selection if we had a selected feature ID
-  if (preservedFeatureId !== null && preservedFeatureId !== undefined) {
-    // Wait for map to be idle (layers fully rendered) before restoring selection
-    map.value.once('idle', () => {
-      // Additional small delay to ensure features are queryable
-      setTimeout(() => {
-        restoreSelectionByFeatureId(preservedFeatureId)
-      }, 200)
-    })
-    // Setup click handler
-    setupClickHandler()
-  } else {
-    // Setup click handler immediately if no selection to restore
-    setupClickHandler()
-  }
+      // Setup click handler
+      setupClickHandler()
+      
+      // Setup click handler
+      setupClickHandler()
     })
   }, 100) // 100ms debounce
 }
@@ -1373,9 +1674,37 @@ const setupClickHandler = () => {
   }
   
   // Create new handler functions and store references
-  currentMousemoveHandler = () => {
+  currentMousemoveHandler = (e) => {
     if (map.value) {
       map.value.getCanvas().style.cursor = 'pointer'
+      
+      // Clear any existing tooltip timer
+      if (tooltipTimer) {
+        clearTimeout(tooltipTimer)
+        tooltipTimer = null
+      }
+      
+      // Show tooltip with feature properties after delay
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0]
+        const pointX = e.point.x
+        const pointY = e.point.y
+        
+        // Set timer to show tooltip after delay
+        tooltipTimer = setTimeout(() => {
+          tooltip.value = {
+            visible: true,
+            feature: feature,
+            x: pointX + 10,
+            y: pointY - 10
+          }
+          tooltipTimer = null
+        }, TOOLTIP_DELAY)
+      } else {
+        // Hide tooltip immediately if no feature
+        tooltip.value.visible = false
+        tooltip.value.feature = null
+      }
     }
   }
   
@@ -1383,6 +1712,14 @@ const setupClickHandler = () => {
     if (map.value) {
       map.value.getCanvas().style.cursor = ''
     }
+    // Clear tooltip timer
+    if (tooltipTimer) {
+      clearTimeout(tooltipTimer)
+      tooltipTimer = null
+    }
+    // Hide tooltip immediately
+    tooltip.value.visible = false
+    tooltip.value.feature = null
   }
   
   // Add handlers with stored references
@@ -1420,6 +1757,36 @@ const setupClickHandler = () => {
 }
 
 // Don't auto-initialize - wait for user to click "Load map"
+
+// Watch for mode changes
+watch(mapMode, (newMode, oldMode) => {
+  if (!mapLoaded.value || !map.value) return
+  
+  if (newMode === 'static') {
+    // When entering static mode, show all years by default
+    visibleYears.value = new Set(decadeYears)
+  } else if (oldMode === 'static') {
+    // When switching away from static mode, clean up ALL static layers first
+    cleanupAllStaticLayers()
+  }
+  
+  // Recreate layers when switching modes
+  createLayersForProjectionYear(projection.value, currentYear.value)
+  updateLayerColors()
+  
+  if (newMode === 'dynamic') {
+    // When switching to dynamic mode, setup click handler
+    setupClickHandler()
+  }
+})
+
+// Watch for projection changes in static mode
+watch([projection, mapMode], ([newProjection, mode]) => {
+  if (!mapLoaded.value || !map.value || mode !== 'static') return
+  
+  // Recreate static layers for new projection
+  createLayersForProjectionYear(newProjection, currentYear.value)
+})
 
 // Load all tilesets when map is loaded
 watch(mapLoaded, async (loaded) => {
@@ -1478,10 +1845,63 @@ watch(mapLoaded, async (loaded) => {
   height: 100%;
 }
 
-.top-left-controls {
+/* Glacier tooltip */
+.glacier-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2000;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tooltip-content {
+  padding: 12px;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.tooltip-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.tooltip-label {
+  color: #666;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.tooltip-value {
+  color: #333;
+  text-align: right;
+  font-weight: 600;
+}
+
+.top-right-controls {
   position: absolute;
   top: 20px;
-  left: 20px;
+  right: 60px; /* Make room for imprint button */
   z-index: 1000;
   display: flex;
   flex-direction: row;
@@ -1567,6 +1987,159 @@ watch(mapLoaded, async (loaded) => {
   font-weight: 600;
 }
 
+.mode-toggle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  display: flex;
+  gap: 4px;
+  background: #e5e5e5;
+  border-radius: 8px;
+  padding: 2px;
+  height: 40px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.mode-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 100%;
+  font-family: inherit;
+}
+
+.mode-toggle-button:hover {
+  color: #333;
+}
+
+.mode-toggle-button.active {
+  background: white;
+  color: #333;
+  font-weight: 600;
+}
+
+.visualization-controls-wrapper {
+  position: absolute;
+  top: 70px;
+  left: 20px;
+  z-index: 1000;
+}
+
+.visualization-controls-wrapper :deep(.top-left-visualization) {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+.year-toggle-bar {
+  position: absolute;
+  top: 70px;
+  left: 20px;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  min-width: 250px;
+  box-sizing: border-box;
+}
+
+.year-toggle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.year-toggle-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.year-toggle-all-button {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.year-toggle-all-button:hover {
+  background: #e8e8e8;
+  color: #333;
+  border-color: #d0d0d0;
+}
+
+.year-toggle-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.year-toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.year-toggle-option:hover {
+  background: #f5f5f5;
+}
+
+.year-toggle-option.active {
+  background: #e8f4f8;
+}
+
+.year-toggle-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.year-toggle-color-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.year-toggle-label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.year-toggle-option.active .year-toggle-label {
+  color: #333;
+  font-weight: 600;
+}
 
 .searchbar-top-center {
   position: absolute;
@@ -1674,6 +2247,7 @@ watch(mapLoaded, async (loaded) => {
   top: 20px;
   right: 20px;
   z-index: 1000;
+  margin-left: 8px;
   width: 40px;
   height: 40px;
   display: flex;

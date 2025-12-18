@@ -1,6 +1,6 @@
 <template>
-  <div v-if="mapLoaded" class="projection-time-controls-wrapper">
-    <div class="scenario-container">
+  <div v-if="mapLoaded" class="projection-time-controls-wrapper" :class="{ 'static-mode': isStaticMode }">
+    <div class="scenario-container" :class="{ 'static-mode': isStaticMode }">
       <div class="scenario-toggle-section">
         <span
           v-for="scenario in scenarios"
@@ -14,6 +14,7 @@
       </div>
     </div>
     <button
+      v-if="!isStaticMode"
       @click="toggleExpand"
       class="expand-button"
       :title="isExpanded ? 'Collapse' : 'Expand'"
@@ -45,7 +46,7 @@
       </div>
       <span class="expand-icon">{{ isExpanded ? '▼' : '▲' }}</span>
     </button>
-    <div class="main-container" :class="{ expanded: isExpanded }">
+    <div v-if="!isStaticMode" class="main-container" :class="{ expanded: isExpanded }">
       <div v-if="isExpanded" class="graph-container">
         <div v-if="selectedProjection" class="chart-svg-wrapper" @mouseleave="hoveredBar = null">
           <!-- Loading state -->
@@ -227,6 +228,10 @@ const props = defineProps({
   getSourceId: {
     type: Function,
     default: null
+  },
+  isStaticMode: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -1223,6 +1228,18 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   /* outline: 2px solid red; */
 }
 
+.projection-time-controls-wrapper.static-mode {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.projection-time-controls-wrapper.static-mode .scenario-container {
+  pointer-events: auto;
+}
+
 .scenario-container {
   position: absolute;
   bottom: 100%;
@@ -1230,6 +1247,16 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   margin-bottom: 0;
   /* outline: 2px solid blue; */
   z-index: 1012;
+}
+
+.projection-time-controls-wrapper.static-mode .scenario-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  margin-bottom: 0;
+  bottom: 20px !important;
 }
 
 .scenario-toggle-section {
@@ -1249,6 +1276,14 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   gap: 2px;
   /* outline: 2px solid red; */
   z-index: 1011;
+}
+
+.projection-time-controls-wrapper.static-mode .scenario-toggle-section {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  clip-path: none;
 }
 
 .scenario-toggle-option {
@@ -1309,6 +1344,16 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
               border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.projection-time-controls-wrapper.static-mode .scenario-toggle-option.selected {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  transform: scale(1);
 }
 
 .main-container {
