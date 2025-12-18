@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Custom Style – Beyond Ice</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+      }
+      #map {
+        position: absolute;
+        inset: 0;
+      }
+      .mapboxgl-control-container {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <script type="module">
+      import mapboxgl from 'mapbox-gl';
+
+      // Using your existing Mapbox access token
+      mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRjbGFyYSIsImEiOiJjbWhzdmZ5ZWQxbGJ4MmpxeXptaWMyNTNwIn0.g7T9RVK4PVAvi09CTCxUlw';
+
+      // --- YOUR STYLE JSON AS A JS OBJECT ---
+      const style = {
+        version: 8,
+        name: 'Mapbox Terrain tileset v2',
+        sources: {
+          'mapbox-terrain': {
+            type: 'vector',
+            url: 'mapbox://mapbox.mapbox-terrain-v2'
+          },
+          'swiss-wms': {
+            type: 'raster',
+            tiles: [
+              'https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ch.swisstopo.digitales-hoehenmodell_25_reliefschattierung&STYLES=default&CRS=EPSG:3857&FORMAT=image/png&TRANSPARENT=true&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}'
+            ],
+            tileSize: 256
+          }
+        },
+        layers: [
+          // {
+          //   id: 'background',
+          //   type: 'background',
+          //   paint: {
+          //     'background-color': '#000000'
+          //   }
+          // },
+          // {
+          //   id: 'landcover',
+          //   source: 'mapbox-terrain',
+          //   'source-layer': 'landcover',
+          //   type: 'fill',
+          //   paint: {
+          //     'fill-color': 'rgba(66,100,251, 0.3)',
+          //     'fill-outline-color': 'rgba(66,100,251, 1)'
+          //   }
+          // },
+          // {
+          //   id: 'hillshade',
+          //   source: 'mapbox-terrain',
+          //   'source-layer': 'hillshade',
+          //   type: 'fill',
+          //   paint: {
+          //     'fill-color': 'rgba(66,100,251, 0.3)',
+          //     'fill-outline-color': 'rgba(66,100,251, 1)'
+          //   }
+          // },
+          {
+            id: 'swiss-wms',
+            type: 'raster',
+            source: 'swiss-wms',
+            paint: {
+              'raster-opacity': 1
+            }
+          },
+          // {
+          //   id: 'contour',
+          //   source: 'mapbox-terrain',
+          //   'source-layer': 'contour',
+          //   type: 'line',
+          //   paint: {
+          //     'line-color': '#ffffff'
+          //   }
+          // }
+        ]
+      };
+
+      const map = new mapboxgl.Map({
+        container: 'map',
+        style,
+        center: [8.3, 46.7],
+        zoom: 8,
+        pitch: 0,
+        bearing: 0
+      });
+
+      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    </script>
+  </body>
+</html>

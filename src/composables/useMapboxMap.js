@@ -2,6 +2,7 @@ import { ref, onBeforeUnmount } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_TOKEN } from '../config/mapbox.js'
+import { minimalContourStyle } from '../config/mapStyles.js'
 
 export function useMapboxMap(mapboxCanvas) {
   const map = ref(null)
