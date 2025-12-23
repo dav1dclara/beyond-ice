@@ -1,124 +1,164 @@
 <template>
-  <div class="top-left-visualization">
-    <div class="visualization-dropdown-wrapper">
-      <div class="visualization-dropdown" @click.stop="showVisualizationDropdown = !showVisualizationDropdown">
-        <button v-if="!isStaticMode" class="visualization-dropdown-button">
-          <span>{{ getVisualizationLabel(modelValue) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showVisualizationDropdown }">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <Transition name="dropdown">
-          <div v-if="showVisualizationDropdown" class="visualization-dropdown-menu" @click.stop>
-            <button
-              @click.stop="handleVisualizationChange('uniform')"
-              :class="{ active: modelValue === 'uniform' }"
-              class="visualization-dropdown-item"
-            >
-              Uniform
+  <div class="visualization-main-container">
+      <!-- Dynamic mode: Dropdown and legend -->
+      <template v-if="!isStaticMode">
+        <div class="visualization-dropdown-wrapper">
+          <div class="visualization-dropdown" @click.stop="showVisualizationDropdown = !showVisualizationDropdown">
+            <button class="visualization-dropdown-button">
+              <span>{{ getVisualizationLabel(modelValue) }}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showVisualizationDropdown }">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
             </button>
-            <button
-              @click.stop="handleVisualizationChange('area-change')"
-              :class="{ active: modelValue === 'area-change' }"
-              class="visualization-dropdown-item"
-            >
-              Area Change
-            </button>
-            <button
-              @click.stop="handleVisualizationChange('volume-change')"
-              :class="{ active: modelValue === 'volume-change' }"
-              class="visualization-dropdown-item"
-            >
-              Volume Change
-            </button>
-            <button
-              @click.stop="handleVisualizationChange('bivariate')"
-              :class="{ active: modelValue === 'bivariate' }"
-              class="visualization-dropdown-item"
-            >
-              Bivariate (Area & Volume)
-            </button>
+            <Transition name="dropdown">
+              <div v-if="showVisualizationDropdown" class="visualization-dropdown-menu" @click.stop>
+                <button
+                  @click.stop="handleVisualizationChange('uniform')"
+                  :class="{ active: modelValue === 'uniform' }"
+                  class="visualization-dropdown-item"
+                >
+                  Uniform
+                </button>
+                <button
+                  @click.stop="handleVisualizationChange('area-change')"
+                  :class="{ active: modelValue === 'area-change' }"
+                  class="visualization-dropdown-item"
+                >
+                  Area Change
+                </button>
+                <button
+                  @click.stop="handleVisualizationChange('volume-change')"
+                  :class="{ active: modelValue === 'volume-change' }"
+                  class="visualization-dropdown-item"
+                >
+                  Volume Change
+                </button>
+                <button
+                  @click.stop="handleVisualizationChange('bivariate')"
+                  :class="{ active: modelValue === 'bivariate' }"
+                  class="visualization-dropdown-item"
+                >
+                  Bivariate (Area & Volume)
+                </button>
+              </div>
+            </Transition>
           </div>
-        </Transition>
-      </div>
-      <!-- Legend attached below dropdown -->
-      <div class="visualization-legend">
-        <div v-if="modelValue === 'uniform'" class="legend-content">
-          <div class="legend-item">
-            <div class="legend-color" :style="{ backgroundColor: COLORS.glacier.default }"></div>
-            <span class="legend-label">Glacier</span>
-          </div>
-        </div>
-        <div v-else-if="modelValue === 'area-change'" class="legend-content">
-          <div class="legend-gradient-bar-horizontal">
-            <div class="legend-labels-horizontal">
-              <span class="legend-label-left">0%</span>
-              <span class="legend-label-right">-100%</span>
+          <!-- Legend attached below dropdown -->
+          <div class="visualization-legend">
+            <div v-if="modelValue === 'uniform'" class="legend-content">
+              <div class="legend-item">
+                <div class="legend-color" :style="{ backgroundColor: COLORS.glacier.default }"></div>
+                <span class="legend-label">Glacier</span>
+              </div>
             </div>
-            <div 
-              class="legend-gradient-horizontal" 
-              :style="{
-                background: `linear-gradient(to right, ${COLORS.visualization.neutral} 0%, ${COLORS.visualization.negativeLight} 50%, ${COLORS.visualization.negative} 100%)`
-              }"
-            ></div>
-          </div>
-        </div>
-        <div v-else-if="modelValue === 'volume-change'" class="legend-content">
-          <div class="legend-gradient-bar-horizontal">
-            <div class="legend-labels-horizontal">
-              <span class="legend-label-left">0%</span>
-              <span class="legend-label-right">-100%</span>
-            </div>
-            <div 
-              class="legend-gradient-horizontal" 
-              :style="{
-                background: `linear-gradient(to right, ${COLORS.visualization.neutral} 0%, ${COLORS.visualization.negativeLight} 50%, ${COLORS.visualization.negative} 100%)`
-              }"
-            ></div>
-          </div>
-        </div>
-        <div v-else-if="modelValue === 'bivariate'" class="legend-content">
-          <div class="legend-bivariate" style="--canvas-size: 160px;">
-            <div style="display: flex; gap: 8px; align-items: flex-start;">
-              <div>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <canvas 
-                    ref="bivariateCanvas" 
-                    class="legend-bivariate-canvas"
-                    :width="160"
-                    :height="160"
-                  ></canvas>
-                  <div class="legend-bivariate-axis-container-vertical">
-                    <div class="legend-bivariate-axis-vertical">
-                      <span class="legend-label-top">0%</span>
-                      <span class="legend-label-bottom">-100%</span>
-                    </div>
-                    <div class="legend-bivariate-axis-label-vertical">
-                      <span class="legend-label">Area change since 2020</span>
-                    </div>
-                  </div>
+            <div v-else-if="modelValue === 'area-change'" class="legend-content">
+              <div class="legend-gradient-bar-horizontal">
+                <div class="legend-labels-horizontal">
+                  <span class="legend-label-left">0%</span>
+                  <span class="legend-label-right">-100%</span>
                 </div>
-                <div class="legend-bivariate-axis-container-horizontal">
-                  <div class="legend-bivariate-axis" style="margin-top: 4px;">
-                    <span class="legend-label-top">0%</span>
-                    <span class="legend-label-bottom">-100%</span>
-                  </div>
-                  <div class="legend-bivariate-axis-label" style="margin-top: 4px; text-align: center;">
-                    <span class="legend-label">Volume change since 2020</span>
+                <div 
+                  class="legend-gradient-horizontal" 
+                  :style="{
+                    background: `linear-gradient(to right, ${COLORS.visualization.neutral} 0%, ${COLORS.visualization.negativeLight} 50%, ${COLORS.visualization.negative} 100%)`
+                  }"
+                ></div>
+              </div>
+            </div>
+            <div v-else-if="modelValue === 'volume-change'" class="legend-content">
+              <div class="legend-gradient-bar-horizontal">
+                <div class="legend-labels-horizontal">
+                  <span class="legend-label-left">0%</span>
+                  <span class="legend-label-right">-100%</span>
+                </div>
+                <div 
+                  class="legend-gradient-horizontal" 
+                  :style="{
+                    background: `linear-gradient(to right, ${COLORS.visualization.neutral} 0%, ${COLORS.visualization.negativeLight} 50%, ${COLORS.visualization.negative} 100%)`
+                  }"
+                ></div>
+              </div>
+            </div>
+            <div v-else-if="modelValue === 'bivariate'" class="legend-content">
+              <div class="legend-bivariate" style="--canvas-size: 160px;">
+                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <canvas 
+                        ref="bivariateCanvas" 
+                        class="legend-bivariate-canvas"
+                        :width="160"
+                        :height="160"
+                      ></canvas>
+                      <div class="legend-bivariate-axis-container-vertical">
+                        <div class="legend-bivariate-axis-vertical">
+                          <span class="legend-label-top">0%</span>
+                          <span class="legend-label-bottom">-100%</span>
+                        </div>
+                        <div class="legend-bivariate-axis-label-vertical">
+                          <span class="legend-label">Area change since 2020</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="legend-bivariate-axis-container-horizontal">
+                      <div class="legend-bivariate-axis" style="margin-top: 4px;">
+                        <span class="legend-label-top">0%</span>
+                        <span class="legend-label-bottom">-100%</span>
+                      </div>
+                      <div class="legend-bivariate-axis-label" style="margin-top: 4px; text-align: center;">
+                        <span class="legend-label">Volume change since 2020</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </template>
+      
+      <!-- Overlay mode: Year toggle legend -->
+      <template v-else>
+        <div class="overlay-legend-container">
+        <div class="overlay-legend-header">
+          <span class="overlay-legend-title">Years</span>
+          <button
+            @click="handleToggleAllYears"
+            class="overlay-legend-toggle-all-button"
+            :title="allYearsVisible ? 'Hide all' : 'Show all'"
+          >
+            {{ allYearsVisible ? 'Hide All' : 'Show All' }}
+          </button>
+        </div>
+        <div class="overlay-legend-options">
+          <label
+            v-for="year in decadeYears"
+            :key="year"
+            class="overlay-legend-option"
+            :class="{ 'active': visibleYearsSet.has(year) }"
+          >
+            <input
+              type="checkbox"
+              :checked="visibleYearsSet.has(year)"
+              @change="handleToggleYear(year)"
+              class="overlay-legend-checkbox"
+            />
+            <div 
+              class="overlay-legend-color-indicator"
+              :style="{ backgroundColor: getYearColor(year) }"
+            ></div>
+            <span class="overlay-legend-label">{{ year }}</span>
+          </label>
+        </div>
       </div>
-    </div>
+      </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { COLORS } from '../config/colors.js'
+import { PROJECTION_CONFIG } from '../config/projections.js'
 
 const props = defineProps({
   modelValue: {
@@ -128,13 +168,67 @@ const props = defineProps({
   isStaticMode: {
     type: Boolean,
     default: false
+  },
+  visibleYears: {
+    type: Set,
+    default: () => new Set()
+  },
+  minYear: {
+    type: Number,
+    default: PROJECTION_CONFIG.MIN_YEAR
+  },
+  maxYear: {
+    type: Number,
+    default: PROJECTION_CONFIG.MAX_YEAR
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'year-toggle', 'toggle-all-years'])
 
 const showVisualizationDropdown = ref(false)
 const bivariateCanvas = ref(null)
+
+// Overlay mode: decade years
+const decadeYears = computed(() => {
+  const years = []
+  for (let y = props.minYear; y <= props.maxYear; y += 10) {
+    years.push(y)
+  }
+  return years
+})
+
+// Convert Set prop to reactive Set
+const visibleYearsSet = computed(() => props.visibleYears)
+
+// Check if all years are visible
+const allYearsVisible = computed(() => {
+  return decadeYears.value.every(year => visibleYearsSet.value.has(year))
+})
+
+// Get color for a specific year in overlay mode (gradient from minYear to maxYear)
+const getYearColor = (year) => {
+  const normalized = (year - props.minYear) / (props.maxYear - props.minYear)
+  
+  // Interpolate from blue (minYear) to orange (maxYear)
+  const blue = { r: 59, g: 130, b: 246 }  // #3B82F6
+  const orange = { r: 249, g: 115, b: 22 }    // #F97316
+  
+  const r = Math.round(blue.r + (orange.r - blue.r) * normalized)
+  const g = Math.round(blue.g + (orange.g - blue.g) * normalized)
+  const b = Math.round(blue.b + (orange.b - blue.b) * normalized)
+  
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// Handle year toggle
+const handleToggleYear = (year) => {
+  emit('year-toggle', year)
+}
+
+// Handle toggle all years
+const handleToggleAllYears = () => {
+  emit('toggle-all-years')
+}
 
 // Get visualization label for dropdown button
 const getVisualizationLabel = (mode) => {
@@ -231,7 +325,7 @@ const handleVisualizationChange = (mode) => {
 
 // Close dropdown when clicking outside
 const handleClickOutside = (event) => {
-  if (!event.target.closest('.visualization-dropdown-wrapper')) {
+  if (!event.target.closest('.visualization-main-container')) {
     showVisualizationDropdown.value = false
   }
 }
@@ -264,18 +358,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.top-left-visualization {
+.visualization-main-container {
   position: absolute;
   top: 20px;
   left: 20px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: 250px;
 }
 
 .visualization-dropdown-wrapper {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 250px;
+  width: 100%;
 }
 
 .visualization-dropdown {
@@ -504,6 +601,89 @@ onBeforeUnmount(() => {
 .legend-label-bottom {
   font-size: 12px;
   color: #666;
+}
+
+/* Overlay mode legend */
+.overlay-legend-container {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.overlay-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.overlay-legend-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.overlay-legend-toggle-all-button {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.overlay-legend-toggle-all-button:hover {
+  background: #f5f5f5;
+  color: #333;
+  border-color: #d0d0d0;
+}
+
+.overlay-legend-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overlay-legend-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.overlay-legend-option:hover {
+  opacity: 0.8;
+}
+
+.overlay-legend-checkbox {
+  cursor: pointer;
+}
+
+.overlay-legend-color-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.overlay-legend-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.overlay-legend-option.active .overlay-legend-label {
+  color: #333;
+  font-weight: 500;
 }
 
 /* Dropdown transitions */

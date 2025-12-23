@@ -6,47 +6,35 @@
       <MapLoadOverlay v-if="!mapLoaded" @load="initializeMap" />
     </Transition>
     
-    <!-- Visualization controls below the toggle button (only in dynamic mode) -->
-    <div v-if="mapLoaded && mapMode === 'dynamic'" class="visualization-controls-wrapper">
+    <!-- Legend -->
+    <Legend 
+      v-if="mapLoaded"
+      :current-mode="mapMode === 'dynamic' ? 'default' : mapMode"
+      :current-visualization="visualization"
+      :visible-years="visibleYears"
+      :min-year="PROJECTION_CONFIG.MIN_YEAR"
+      :max-year="PROJECTION_CONFIG.MAX_YEAR"
+      :reference-scenario="referenceScenario"
+      :comparison-scenario="comparisonScenario"
+      :visible-scenarios="visibleScenarios"
+      @year-toggle="toggleYear"
+      @toggle-all-years="toggleAllYears"
+      @scenario-toggle="toggleScenario"
+      @visualization-change="handleVisualizationChange"
+    />
+    
+    <!-- Visualization controls (both dynamic and overlay modes) -->
+    <div v-if="mapLoaded" class="visualization-controls-wrapper">
       <VisualizationControls 
         v-model="visualization"
         :is-static-mode="mapMode === 'overlay'"
+        :visible-years="visibleYears"
+        :min-year="PROJECTION_CONFIG.MIN_YEAR"
+        :max-year="PROJECTION_CONFIG.MAX_YEAR"
         @update:modelValue="handleVisualizationChange"
+        @year-toggle="toggleYear"
+        @toggle-all-years="toggleAllYears"
       />
-    </div>
-    
-    <!-- Year toggle bar in overlay mode -->
-    <div v-if="mapLoaded && mapMode === 'overlay'" class="year-toggle-bar">
-      <div class="year-toggle-header">
-        <span class="year-toggle-title">Years</span>
-        <button
-          @click="toggleAllYears"
-          class="year-toggle-all-button"
-          :title="allYearsVisible ? 'Hide all' : 'Show all'"
-        >
-          {{ allYearsVisible ? 'Hide All' : 'Show All' }}
-        </button>
-      </div>
-      <div class="year-toggle-options">
-        <label
-          v-for="year in decadeYears"
-          :key="year"
-          class="year-toggle-option"
-          :class="{ 'active': visibleYears.has(year) }"
-        >
-          <input
-            type="checkbox"
-            :checked="visibleYears.has(year)"
-            @change="toggleYear(year)"
-            class="year-toggle-checkbox"
-          />
-          <div 
-            class="year-toggle-color-indicator"
-            :style="{ backgroundColor: getYearColor(year) }"
-          ></div>
-          <span class="year-toggle-label">{{ year }}</span>
-        </label>
-      </div>
     </div>
     
     <!-- Tooltip for glacier properties -->
@@ -239,7 +227,7 @@
       @mode-change="handleModeChange"
     /> -->
     
-    <ProjectionControls 
+    <ControlPanel 
       :current-year="currentYear"
       :min-year="PROJECTION_CONFIG.MIN_YEAR"
       :max-year="PROJECTION_CONFIG.MAX_YEAR"
@@ -272,8 +260,8 @@ import { swissImage } from '../config/mapStyles.js'
 import SearchBar from './SearchBar.vue'
 // import ProjectionTimeControls from './ProjectionTimeControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
-import VisualizationControls from './VisualizationControls.vue'
-import ProjectionControls from './ProjectionControls.vue'
+import ControlPanel from './ControlPanel.vue'
+import Legend from './Legend.vue'
 
 // Template ref for map container
 const mapboxCanvas = ref(null)
@@ -320,6 +308,10 @@ const toggleYear = (year) => {
   // Recreate all layers to maintain proper ordering
   if (map.value && mapMode.value === 'overlay') {
     createLayersForProjectionYear(projection.value, currentYear.value)
+    // Update click handlers after layers are recreated
+    setTimeout(async () => {
+      await setupClickHandler()
+    }, 150)
   }
 }
 
@@ -336,6 +328,40 @@ const toggleAllYears = () => {
   // Recreate all layers to maintain proper ordering
   if (map.value && mapMode.value === 'overlay') {
     createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
+// Toggle scenario visibility in comparison mode
+const toggleScenario = (scenario) => {
+  if (visibleScenarios.value.has(scenario)) {
+    visibleScenarios.value.delete(scenario)
+  } else {
+    visibleScenarios.value.add(scenario)
+  }
+  
+  // Update layer visibility
+  if (map.value && mapMode.value === 'comparison') {
+    updateComparisonLayerVisibility()
+  }
+}
+
+// Update comparison layer visibility based on visibleScenarios
+const updateComparisonLayerVisibility = () => {
+  if (!map.value || mapMode.value !== 'comparison') return
+  
+  const refLayerId = getComparisonLayerId(referenceScenario.value)
+  const compLayerId = getComparisonLayerId(comparisonScenario.value)
+  
+  // Show/hide reference layer
+  if (map.value.getLayer(refLayerId)) {
+    const visibility = visibleScenarios.value.has('reference') ? 'visible' : 'none'
+    map.value.setLayoutProperty(refLayerId, 'visibility', visibility)
+  }
+  
+  // Show/hide comparison layer
+  if (map.value.getLayer(compLayerId)) {
+    const visibility = visibleScenarios.value.has('comparison') ? 'visible' : 'none'
+    map.value.setLayoutProperty(compLayerId, 'visibility', visibility)
   }
 }
 
@@ -491,6 +517,7 @@ const currentYear = ref(PROJECTION_CONFIG.DEFAULT_YEAR)
 // Comparison mode state
 const referenceScenario = ref('SSP2-4.5')
 const comparisonScenario = ref('SSP5-8.5')
+const visibleScenarios = ref(new Set(['reference', 'comparison']))
 
 // Computed IDs for current projection
 const currentSourceId = computed(() => getSourceId(projection.value))
@@ -1400,14 +1427,14 @@ const getYearColor = (year) => {
   const normalized = (year - minYear) / (maxYear - minYear)
   
   // Interpolate from blue (2020) to red (2100) for better visual distinction
-  // Blue: #60A5FA (rgb(96, 165, 250))
-  // Red: #EF4444 (rgb(239, 68, 68))
-  const blue = { r: 96, g: 165, b: 250 }  // #60A5FA
-  const red = { r: 239, g: 68, b: 68 }    // #EF4444
+  // Blue: #3B82F6 (rgb(59, 130, 246))
+  // Orange: #F97316 (rgb(249, 115, 22))
+  const blue = { r: 59, g: 130, b: 246 }  // #3B82F6
+  const orange = { r: 249, g: 115, b: 22 }    // #F97316
   
-  const r = Math.round(blue.r + (red.r - blue.r) * normalized)
-  const g = Math.round(blue.g + (red.g - blue.g) * normalized)
-  const b = Math.round(blue.b + (red.b - blue.b) * normalized)
+  const r = Math.round(blue.r + (orange.r - blue.r) * normalized)
+  const g = Math.round(blue.g + (orange.g - blue.g) * normalized)
+  const b = Math.round(blue.b + (orange.b - blue.b) * normalized)
   
   return `rgb(${r}, ${g}, ${b})`
 }
@@ -1498,9 +1525,12 @@ const createLayersForProjectionYear = (proj, year) => {
       type: 'fill',
       source: refSourceId,
       'source-layer': sourceLayerName,
+      layout: {
+        visibility: visibleScenarios.value.has('reference') ? 'visible' : 'none'
+      },
       paint: {
-        'fill-color': '#60A5FA', // Blue for reference
-        'fill-opacity': 0.5,
+        'fill-color': '#3B82F6', // Blue for reference
+        'fill-opacity': 0.6,
       },
     })
     
@@ -1510,8 +1540,11 @@ const createLayersForProjectionYear = (proj, year) => {
       type: 'fill',
       source: compSourceId,
       'source-layer': sourceLayerName,
+      layout: {
+        visibility: visibleScenarios.value.has('comparison') ? 'visible' : 'none'
+      },
       paint: {
-        'fill-color': '#EF4444', // Red for comparison
+        'fill-color': '#F97316', // Orange for comparison
         'fill-opacity': 0.6,
       },
     })
@@ -1579,6 +1612,13 @@ const createLayersForProjectionYear = (proj, year) => {
     }
     
     console.log(`[MapNew] ${mapMode.value} mode layers created for projection:`, proj, 'years:', decadeYears)
+    
+    // Setup click handlers for overlay layers
+    // Use a small delay to ensure layers are fully added to the map
+    setTimeout(async () => {
+      await setupClickHandler()
+    }, 150)
+    
     return
   }
 
@@ -1919,7 +1959,7 @@ let currentMousemoveHandler = null
 let currentMouseleaveHandler = null
 
 const handleGlacierClick = (e) => {
-  // In comparison mode, query features from both layers at the click point
+  // In comparison mode or overlay mode, query features from all relevant layers at the click point
   // This ensures we get features even when layers overlap
   let features = []
   if (mapMode.value === 'comparison') {
@@ -1948,22 +1988,64 @@ const handleGlacierClick = (e) => {
     }
     
     features = allFeatures
+  } else if (mapMode.value === 'overlay') {
+    // In overlay mode, query features from all visible overlay layers
+    const overlayLayerIds = []
+    decadeYears.forEach(year => {
+      if (visibleYears.value.has(year)) {
+        const layerId = getStaticLayerId(projection.value, year)
+        if (map.value.getLayer(layerId)) {
+          overlayLayerIds.push(layerId)
+        }
+      }
+    })
+    
+    if (overlayLayerIds.length === 0) {
+      console.warn('[MapNew] No visible overlay layers to query')
+      return
+    }
+    
+    // Query features from all visible overlay layers at the click point
+    const allFeatures = map.value.queryRenderedFeatures(e.point, {
+      layers: overlayLayerIds
+    })
+    
+    console.log('[MapNew] Query found', allFeatures.length, 'features at click point in overlay mode', {
+      overlayLayerIds,
+      point: e.point,
+      features: allFeatures.map(f => ({
+        id: f.id,
+        layerId: f.layer?.id,
+        hasProperties: !!f.properties
+      }))
+    })
+    
+    if (allFeatures.length === 0) {
+      console.warn('[MapNew] No features found at click point in overlay mode')
+      return
+    }
+    
+    features = allFeatures
   } else {
     // Regular mode: use features from event
     if (!e.features || e.features.length === 0) return
     features = e.features
   }
   
-  // Use the topmost feature (first in array, which is the comparison layer in comparison mode)
+  // Use the topmost feature
   let selectedFeature = features[0]
   
-  // If we have multiple features in comparison mode, prefer the comparison layer feature
+  // If we have multiple features, prefer the topmost layer feature
   if (mapMode.value === 'comparison' && features.length > 1) {
     const compLayerId = getComparisonLayerId(comparisonScenario.value)
     const compFeature = features.find(f => f.layer?.id === compLayerId)
     if (compFeature) {
       selectedFeature = compFeature
     }
+  } else if (mapMode.value === 'overlay' && features.length > 1) {
+    // In overlay mode, prefer the most recent year (topmost layer)
+    // Features are returned in layer order, so the last one is the topmost
+    selectedFeature = features[features.length - 1]
   }
   
   // Get feature ID from the selected feature
@@ -2106,10 +2188,10 @@ const handleGlacierClick = (e) => {
     strictEqual: currentIdNormalized === normalizedFeatureId
   })
   
-  // In comparison mode, don't allow deselection by clicking the same feature
+  // In comparison mode or overlay mode, don't allow deselection by clicking the same feature
   // (since overlapping layers can make it confusing)
   // Only allow deselection by clicking outside
-  if (isSameFeature && mapMode.value !== 'comparison') {
+  if (isSameFeature && mapMode.value !== 'comparison' && mapMode.value !== 'overlay') {
     console.log('[MapNew] Deselecting feature (clicked same feature again)')
     selectedGlacier.value = null
     selectedFeatureId.value = null
@@ -2154,6 +2236,30 @@ const handleMapClick = (e) => {
       updateLayerColors()
       console.log('[MapNew] ✓ Deselected (clicked outside glacier)')
     }
+  } else if (mapMode.value === 'overlay') {
+    // In overlay mode, check all visible overlay layers
+    const overlayLayerIds = []
+    decadeYears.forEach(year => {
+      if (visibleYears.value.has(year)) {
+        const layerId = getStaticLayerId(projection.value, year)
+        if (map.value.getLayer(layerId)) {
+          overlayLayerIds.push(layerId)
+        }
+      }
+    })
+    
+    const features = map.value.queryRenderedFeatures(e.point, {
+      layers: overlayLayerIds
+    })
+    
+    // If no glacier features were selected, deselect
+    if (features.length === 0 && selectedGlacier.value !== null) {
+      selectedGlacier.value = null
+      selectedFeatureId.value = null
+      searchQuery.value = ''
+      updateLayerColors()
+      console.log('[MapNew] ✓ Deselected (clicked outside glacier)')
+    }
   } else {
     const layerId = currentLayerId.value
     // Check if any features from the glacier layer were selected
@@ -2176,6 +2282,71 @@ const handleMapClick = (e) => {
 const setupClickHandler = async () => {
   if (!map.value) {
     console.warn('[MapNew] Cannot setup click handler: map not available')
+    return
+  }
+  
+  // In overlay mode, set up handlers for all visible overlay layers
+  if (mapMode.value === 'overlay') {
+    const overlayLayerIds = []
+    decadeYears.forEach(year => {
+      if (visibleYears.value.has(year)) {
+        const layerId = getStaticLayerId(projection.value, year)
+        if (map.value.getLayer(layerId)) {
+          overlayLayerIds.push(layerId)
+        }
+      }
+    })
+    
+    if (overlayLayerIds.length === 0) {
+      console.warn('[MapNew] Cannot setup click handler: no visible overlay layers')
+      return
+    }
+    
+    // Check if handlers are already set up for these layers
+    const overlayLayerKey = `overlay-${overlayLayerIds.join('-')}`
+    if (handlerLayerId.value === overlayLayerKey) {
+      return
+    }
+    
+    console.log('[MapNew] Setting up click handlers for overlay layers:', overlayLayerIds)
+    
+    // Remove old handlers first
+    if (handlerLayerId.value && handlerLayerId.value.startsWith('overlay-')) {
+      // Extract old layer IDs from the key
+      const oldKey = handlerLayerId.value.replace('overlay-', '')
+      const oldLayerIds = oldKey.split('-').filter(id => id)
+      oldLayerIds.forEach(oldLayerId => {
+        try {
+          map.value.off('mousemove', oldLayerId, currentMousemoveHandler)
+          map.value.off('mouseleave', oldLayerId, currentMouseleaveHandler)
+          map.value.off('click', oldLayerId, handleGlacierClick)
+        } catch (error) {
+          // Ignore errors when removing handlers
+        }
+      })
+    }
+    
+    // Add handlers to all visible overlay layers
+    try {
+      overlayLayerIds.forEach(layerId => {
+        map.value.on('mousemove', layerId, currentMousemoveHandler)
+        map.value.on('mouseleave', layerId, currentMouseleaveHandler)
+        map.value.on('click', layerId, handleGlacierClick)
+        console.log('[MapNew] ✓ Handlers attached to overlay layer:', layerId)
+      })
+      
+      handlerLayerId.value = overlayLayerKey
+      
+      // Setup map click handler (only once)
+      if (!mapClickHandlerSetup.value) {
+        map.value.on('click', handleMapClick)
+        mapClickHandlerSetup.value = true
+        console.log('[MapNew] ✓ Map click handler set up')
+      }
+    } catch (error) {
+      console.error('[MapNew] Error attaching handlers to overlay layers:', error)
+    }
+    
     return
   }
   
@@ -2260,7 +2431,7 @@ const setupClickHandler = async () => {
           tooltipTimer = null
         }
         
-        // In comparison mode, query both layers to get features even when overlapping
+        // In comparison mode or overlay mode, query all relevant layers to get features even when overlapping
         let features = []
         if (mapMode.value === 'comparison') {
           const refLayerId = getComparisonLayerId(referenceScenario.value)
@@ -2268,18 +2439,34 @@ const setupClickHandler = async () => {
           features = map.value.queryRenderedFeatures(e.point, {
             layers: [refLayerId, compLayerId]
           })
+        } else if (mapMode.value === 'overlay') {
+          const overlayLayerIds = []
+          decadeYears.forEach(year => {
+            if (visibleYears.value.has(year)) {
+              const layerId = getStaticLayerId(projection.value, year)
+              if (map.value.getLayer(layerId)) {
+                overlayLayerIds.push(layerId)
+              }
+            }
+          })
+          features = map.value.queryRenderedFeatures(e.point, {
+            layers: overlayLayerIds
+          })
         } else {
           features = e.features || []
         }
         
         if (features.length > 0) {
-          // Prefer comparison layer feature if available
-          const compLayerId = mapMode.value === 'comparison' 
-            ? getComparisonLayerId(comparisonScenario.value)
-            : null
-          const feature = compLayerId 
-            ? features.find(f => f.layer?.id === compLayerId) || features[0]
-            : features[0]
+          // Prefer comparison layer feature if available, or topmost overlay layer feature
+          let feature = features[0]
+          if (mapMode.value === 'comparison') {
+            const compLayerId = getComparisonLayerId(comparisonScenario.value)
+            feature = features.find(f => f.layer?.id === compLayerId) || features[0]
+          } else if (mapMode.value === 'overlay') {
+            // In overlay mode, prefer the most recent year (topmost layer)
+            // Features are returned in layer order, so the last one is the topmost
+            feature = features[features.length - 1]
+          }
           
           const pointX = e.point.x
           const pointY = e.point.y
@@ -2342,8 +2529,8 @@ const setupClickHandler = async () => {
   // Regular mode: single layer
   const layerId = currentLayerId.value
   
-  // If handlers are already set up for this layer, skip
-  if (handlerLayerId.value === layerId) {
+  // If handlers are already set up for this layer and it's not an overlay/comparison key, skip
+  if (handlerLayerId.value === layerId && !handlerLayerId.value.startsWith('overlay-') && !handlerLayerId.value.includes('comparison')) {
     return
   }
   
@@ -2359,10 +2546,26 @@ const setupClickHandler = async () => {
   if (handlerLayerId.value) {
     const oldLayerId = handlerLayerId.value
     try {
-      // Check if it's a comparison layer key (contains '-')
-      if (oldLayerId.includes('-') && oldLayerId.includes('comparison')) {
+      // Check if it's an overlay layer key
+      if (oldLayerId.startsWith('overlay-')) {
+        // Extract old layer IDs from the key
+        const oldKey = oldLayerId.replace('overlay-', '')
+        const oldLayerIds = oldKey.split('-').filter(id => id)
+        oldLayerIds.forEach(oldLayerId => {
+          try {
+            if (currentMousemoveHandler) {
+              map.value.off('mousemove', oldLayerId, currentMousemoveHandler)
+            }
+            if (currentMouseleaveHandler) {
+              map.value.off('mouseleave', oldLayerId, currentMouseleaveHandler)
+            }
+            map.value.off('click', oldLayerId, handleGlacierClick)
+          } catch (error) {
+            // Ignore errors when removing handlers
+          }
+        })
+      } else if (oldLayerId.includes('-') && oldLayerId.includes('comparison')) {
         // It's a comparison layer key, try to remove from both layers
-        const [refLayer, compLayer] = oldLayerId.split('-').slice(-2)
         const refLayerId = getComparisonLayerId(referenceScenario.value)
         const compLayerId = getComparisonLayerId(comparisonScenario.value)
         if (currentMousemoveHandler) {
@@ -2513,6 +2716,11 @@ watch(mapMode, (newMode, oldMode) => {
   if (newMode === 'dynamic') {
     // When switching to dynamic mode, setup click handler
     setupClickHandler()
+  } else if (newMode === 'overlay') {
+    // When switching to overlay mode, setup click handler
+    setTimeout(async () => {
+      await setupClickHandler()
+    }, 150)
   }
 })
 
@@ -2743,118 +2951,13 @@ watch(mapLoaded, async (loaded) => {
   left: 0 !important;
 }
 
-.year-toggle-bar {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 1000;
-  background: white;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  padding: 12px;
-  min-width: 250px;
-  box-sizing: border-box;
-}
-
-.year-toggle-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.year-toggle-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-
-.year-toggle-all-button {
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #666;
-  background: #f5f5f5;
-  border: 1px solid #e5e5e5;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.year-toggle-all-button:hover {
-  background: #e8e8e8;
-  color: #333;
-  border-color: #d0d0d0;
-}
-
-.year-toggle-options {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.year-toggle-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  user-select: none;
-}
-
-.year-toggle-option:hover {
-  background: #f5f5f5;
-}
-
-.year-toggle-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.year-toggle-color-indicator {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  flex-shrink: 0;
-}
-
-.year-toggle-label {
-  font-size: 13px;
-  color: #666;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.year-toggle-option.active .year-toggle-label {
-  color: #333;
-  font-weight: 600;
-}
 
 .searchbar-top-center {
   position: absolute;
-  top: 20px;
+  top: 10px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  width: auto;
-  min-width: 300px;
-  max-width: 500px;
-}
-
-.searchbar-top-center :deep(.searchbar-wrapper) {
-  position: relative !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100%;
-  margin: 0;
 }
 
 .zoom-to-glacier-dropdown {
