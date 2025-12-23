@@ -178,9 +178,6 @@ const getYearLabelStyle = (year) => {
   align-items: center;
   gap: 16px;
   flex: 1;
-  /* outline: red solid 1px; */
-  padding-right: 4px;
-  padding-left: 4px;
 }
 
 .play-button {
@@ -193,8 +190,7 @@ const getYearLabelStyle = (year) => {
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, background 0.2s;
   color: #333;
   padding: 0;
   font-size: 14px;
@@ -206,7 +202,6 @@ const getYearLabelStyle = (year) => {
 
 .play-button:hover:not(.disabled) {
   background: #f5f5f5;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .play-button.disabled {
@@ -234,14 +229,15 @@ const getYearLabelStyle = (year) => {
 
 .time-slider {
   position: relative;
-  width: 100%;
+  width: calc(100% - 8px);
   height: 6px;
   border-radius: 3px;
   background: #e5e5e5;
   -webkit-appearance: none;
   appearance: none;
   margin: 0 0 24px 0;
-  padding: 0;
+  margin-left: 4px;
+  margin-right: 4px;
   z-index: 1;
 }
 
@@ -257,7 +253,7 @@ const getYearLabelStyle = (year) => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-glacier-default);
+  background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -267,7 +263,7 @@ const getYearLabelStyle = (year) => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-glacier-default);
+  background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -276,14 +272,14 @@ const getYearLabelStyle = (year) => {
 .year-labels {
   position: absolute;
   bottom: 0;
-  left: var(--thumb-offset);
-  right: var(--thumb-offset);
+  left: 14px;
+  right: 14px;
+  width: calc(100% - 28px);
   font-size: 12px;
   color: #666;
   height: 16px;
   box-sizing: border-box;
   z-index: 2;
-  /* outline: blue solid 1px; */
 }
 
 .year-labels.disabled {
@@ -294,6 +290,5 @@ const getYearLabelStyle = (year) => {
   position: absolute;
   bottom: -2px;
   white-space: nowrap;
-  /* outline: orange solid 1px; */
 }
 </style>

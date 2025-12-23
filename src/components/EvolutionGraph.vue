@@ -6,21 +6,31 @@
     </div>
     <!-- Chart (shown when loaded) -->
     <div v-if="chartLoaded && (chartData.length > 0 || comparisonChartData.length > 0)" class="chart-container">
-      <div class="y-axis-labels">
-        <div 
-          class="y-axis-label y-axis-max"
-          :style="{ top: `${(getBarY(yAxisMax) / chartHeight) * 100}%` }"
-        >
-          {{ formatYAxisValue(yAxisMax) }}
-        </div>
-        <div 
-          class="y-axis-label y-axis-min"
-          :style="{ top: `${(chartHeight / chartHeight) * 100}%` }"
-        >
-          0
-        </div>
+      <div class="chart-title">
+        {{ selectedGlacier?.name || 'Overall' }}
       </div>
-      <div class="chart-svg-container">
+      <div class="chart-content">
+        <div class="y-axis-labels">
+          <div 
+            class="y-axis-label y-axis-max"
+            :style="{ top: `${(getBarY(yAxisMax) / chartHeight) * 100}%` }"
+          >
+            {{ formatYAxisValue(yAxisMax) }}
+          </div>
+          <div 
+            class="y-axis-label y-axis-middle"
+            :style="{ top: '50%' }"
+          >
+            {{ getTooltipUnit() }}
+          </div>
+          <div 
+            class="y-axis-label y-axis-min"
+            :style="{ top: `${(chartHeight / chartHeight) * 100}%` }"
+          >
+            0
+          </div>
+        </div>
+        <div class="chart-svg-container">
         <svg class="bar-chart-svg" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none">
           <!-- Horizontal reference lines -->
           <line
@@ -46,18 +56,19 @@
             <!-- Single bar mode (default/overlay) -->
             <path
               v-for="(dataPoint, index) in chartData"
-              :key="`bar-${index}`"
+              :key="`bar-${index}-${currentYear}`"
               :d="getBarPath(
                 getBarX(index),
                 getBarY(getChartValue(dataPoint)),
                 barWidth,
                 getChartValue(dataPoint) === null ? 0.1 : Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
               )"
-              :fill="dataPoint.year === currentYear ? COLORS.chart.barCurrentYear : COLORS.chart.barDefault"
-              :opacity="getChartValue(dataPoint) === null ? 0 : 1"
+              :fill="dataPoint.year === currentYear ? '#d0d0d0' : COLORS.chart.barDefault"
+              :opacity="getChartValue(dataPoint) === null ? 0 : (dataPoint.year === currentYear ? 1 : 0.7)"
               @mouseenter="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
               @mousemove="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
               @click="getChartValue(dataPoint) !== null && handleBarClick(dataPoint)"
+              @mouseleave="hoveredBar = null"
               :style="{ cursor: getChartValue(dataPoint) !== null ? 'pointer' : 'default' }"
             />
           </template>
@@ -73,14 +84,15 @@
                   barWidth / 2,
                   Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
                 )"
-                fill="#60A5FA"
-                opacity="1"
+                fill="#3B82F6"
+                :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
                 @mouseenter="handleBarHover(dataPoint, index, $event, 'reference')"
                 @mousemove="handleBarHover(dataPoint, index, $event, 'reference')"
                 @click="handleBarClick(dataPoint)"
+                @mouseleave="hoveredBar = null"
                 style="cursor: pointer"
               />
-              <!-- Comparison scenario bar (red) -->
+              <!-- Comparison scenario bar (orange) -->
               <path
                 v-if="getComparisonValueForYear(dataPoint.year) !== null"
                 :d="getBarPath(
@@ -89,11 +101,12 @@
                   barWidth / 2,
                   Math.max(2, chartHeight - getBarY(getComparisonValueForYear(dataPoint.year)))
                 )"
-                fill="#EF4444"
-                opacity="1"
+                fill="#F97316"
+                :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
                 @mouseenter="handleComparisonBarHover(dataPoint.year, index, $event)"
                 @mousemove="handleComparisonBarHover(dataPoint.year, index, $event)"
                 @click="handleComparisonBarClick(dataPoint.year)"
+                @mouseleave="hoveredBar = null"
                 style="cursor: pointer"
               />
             </template>
@@ -116,6 +129,7 @@
           </button>
         </div>
       </div>
+      </div>
     </div>
     <!-- Tooltip -->
     <div 
@@ -128,7 +142,7 @@
         {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit() }}
       </div>
       <div v-if="hoveredBar.change !== null && hoveredBar.change !== undefined" class="tooltip-change">
-        {{ formatChange(hoveredBar.change) }} from first year
+        {{ formatChange(hoveredBar.change) }} since 2020
       </div>
     </div>
   </div>
@@ -889,11 +903,10 @@ watch(() => selectedMetric.value, async () => {
 .graph-container {
   position: relative;
   width: flex;
-  height: 150px;
+  height: 180px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  outline: red solid 1px;
 }
 
 .chart-load-placeholder {
@@ -915,9 +928,26 @@ watch(() => selectedMetric.value, async () => {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  outline: green solid 1px;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.chart-content {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
 }
 
 .chart-svg-container {
@@ -925,20 +955,18 @@ watch(() => selectedMetric.value, async () => {
   flex: 1;
   display: flex;
   align-items: stretch;
-  outline: blue solid 1px;
 }
 
 .y-axis-labels {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  padding-right: 8px;
+  padding-right: 0px;
   font-size: 12px;
   color: #666;
   width: var(--y-axis-width, 40px);
   height: 100%;
   position: relative;
-  outline: orange solid 1px;
 }
 
 .y-axis-label {
@@ -947,6 +975,10 @@ watch(() => selectedMetric.value, async () => {
 }
 
 .y-axis-max {
+  transform: translateY(-50%);
+}
+
+.y-axis-middle {
   transform: translateY(-50%);
 }
 
@@ -966,17 +998,17 @@ watch(() => selectedMetric.value, async () => {
   right: 8px;
   display: flex;
   gap: 4px;
-  background: #e5e5e5 !important;
+  background: #FFFFFF;
   border-radius: 6px;
   padding: 2px;
   z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e5e5;
 }
 
 .chart-metric-toggle {
   display: flex;
   gap: 4px;
-  background: #e5e5e5;
+  background: #FFFFFF;
   border-radius: 6px;
   padding: 2px;
 }
@@ -984,8 +1016,8 @@ watch(() => selectedMetric.value, async () => {
 .metric-button {
   padding: 4px 12px;
   font-size: 12px;
-  font-weight: 500;
-  color: #666;
+  font-weight: 400;
+  color: #666666;
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -994,12 +1026,13 @@ watch(() => selectedMetric.value, async () => {
 }
 
 .metric-button:hover {
-  color: #333;
+  background: #f5f5f5;
+  color: #333333;
 }
 
 .metric-button.active {
-  background: white;
-  color: #333;
+  background: #f5f5f5;
+  color: #333333;
   font-weight: 600;
 }
 
