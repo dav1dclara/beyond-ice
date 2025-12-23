@@ -199,8 +199,8 @@ const handleComparisonScenarioChange = (scenario) => {
   right: 10px;
   bottom: 100%;
   margin-bottom: 0;
-  width: 180px;
-  padding: 6px 12px;
+  width: 160px;
+  padding: 4px 12px 0px 12px;
   background: white;
   border: 1px solid #e5e5e5;
   border-top-left-radius: 10px;
@@ -217,24 +217,23 @@ const handleComparisonScenarioChange = (scenario) => {
   transition: all 0.2s;
   z-index: 1001;
   font-family: inherit;
-  min-height: 24px;
+  min-height: 18px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 8px;
   flex-shrink: 0;
   white-space: nowrap;
 }
 
-.graph-toggle-button:hover:not(.disabled) {
-  background: #f5f5f5;
-  color: #333;
-}
-
 .graph-toggle-button.disabled {
-  opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+.graph-toggle-button.disabled span,
+.graph-toggle-button.disabled .graph-toggle-icon {
+  opacity: 0.5;
 }
 
 .graph-toggle-icon {

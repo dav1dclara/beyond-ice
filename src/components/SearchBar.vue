@@ -109,9 +109,7 @@ const handleClear = () => {
 
 <style scoped>
 .searchbar-wrapper {
-  position: absolute;
-  top: 20px;
-  left: 20px;
+  position: relative;
   display: flex;
   align-items: center;
   background: white;
@@ -120,9 +118,9 @@ const handleClear = () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 8px 12px;
   min-height: 40px;
-  min-width: 300px;
-  max-width: 500px;
-  width: 320px;
+  min-width: 250px;
+  max-width: 400px;
+  width: 280px;
   box-sizing: border-box;
   transition: box-shadow 0.2s, border-color 0.2s;
   pointer-events: auto;
@@ -145,7 +143,7 @@ const handleClear = () => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 12px;
   color: #333;
   padding: 0;
   min-width: 0;

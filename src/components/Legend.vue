@@ -1,0 +1,825 @@
+<template>
+  <div class="legend-container" :class="{ 'legend-container-fixed-width': currentMode === 'default' }">
+    <div v-if="currentMode === 'default'" class="legend-dropdown-wrapper">
+      <span class="legend-visualization-label">
+        Visualization
+      </span>
+      <div class="legend-dropdown" @click.stop="showVisualizationDropdown = !showVisualizationDropdown">
+        <button class="legend-dropdown-button">
+          <span>{{ getVisualizationLabel(currentVisualization) }}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showVisualizationDropdown }">
+            <polyline points="6 15 12 9 18 15"></polyline>
+          </svg>
+        </button>
+        <Transition name="dropdown">
+          <div v-if="showVisualizationDropdown" class="legend-dropdown-menu" @click.stop>
+            <button
+              @click.stop="handleVisualizationChange('uniform')"
+              :class="{ active: currentVisualization === 'uniform' }"
+              class="legend-dropdown-item"
+            >
+              Uniform
+            </button>
+            <button
+              @click.stop="handleVisualizationChange('area-change')"
+              :class="{ active: currentVisualization === 'area-change' }"
+              class="legend-dropdown-item"
+            >
+              Change in Area (univariate)
+            </button>
+            <button
+              @click.stop="handleVisualizationChange('volume-change')"
+              :class="{ active: currentVisualization === 'volume-change' }"
+              class="legend-dropdown-item"
+            >
+              Change in Volume (univariate)
+            </button>
+            <button
+              @click.stop="handleVisualizationChange('bivariate')"
+              :class="{ active: currentVisualization === 'bivariate' }"
+              class="legend-dropdown-item"
+            >
+              Change in Area & Volume (multivariate)
+            </button>
+          </div>
+        </Transition>
+      </div>
+      <!-- Area change legend -->
+      <div v-if="currentVisualization === 'area-change'" class="legend-gradient-content">
+        <div class="legend-gradient-bar-horizontal">
+          <div class="legend-labels-horizontal">
+            <span class="legend-label-left">0%</span>
+            <span class="legend-label-right">-100%</span>
+          </div>
+          <div 
+            class="legend-gradient-horizontal" 
+            :style="{
+              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
+            }"
+          ></div>
+        </div>
+      </div>
+      <!-- Volume change legend -->
+      <div v-if="currentVisualization === 'volume-change'" class="legend-gradient-content">
+        <div class="legend-gradient-bar-horizontal">
+          <div class="legend-labels-horizontal">
+            <span class="legend-label-left">0%</span>
+            <span class="legend-label-right">-100%</span>
+          </div>
+          <div 
+            class="legend-gradient-horizontal" 
+            :style="{
+              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
+            }"
+          ></div>
+        </div>
+      </div>
+      <!-- Bivariate legend -->
+      <div v-if="currentVisualization === 'bivariate'" class="legend-bivariate" style="--canvas-size: 160px;">
+        <div style="display: flex; gap: 8px; align-items: flex-start;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <canvas 
+                ref="bivariateCanvas" 
+                class="legend-bivariate-canvas"
+                :width="160"
+                :height="160"
+              ></canvas>
+              <div class="legend-bivariate-axis-container-vertical">
+                <div class="legend-bivariate-axis-vertical">
+                  <span class="legend-label-top">0%</span>
+                  <span class="legend-label-bottom">-100%</span>
+                </div>
+                <div class="legend-bivariate-axis-label-vertical">
+                  <span class="legend-label">Area change since 2020</span>
+                </div>
+              </div>
+            </div>
+            <div class="legend-bivariate-axis-container-horizontal">
+              <div class="legend-bivariate-axis" style="margin-top: 4px;">
+                <span class="legend-label-top">0%</span>
+                <span class="legend-label-bottom">-100%</span>
+              </div>
+              <div class="legend-bivariate-axis-label" style="margin-top: 4px; text-align: center;">
+                <span class="legend-label">Volume change since 2020</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="currentMode === 'overlay'" class="overlay-legend-content">
+      <div class="overlay-legend-options">
+        <div
+          v-for="year in decadeYears"
+          :key="year"
+          class="overlay-legend-option"
+          :class="{ 'active': visibleYearsSet.has(year) }"
+        >
+          <button
+            @click="handleToggleYear(year)"
+            class="overlay-legend-year-toggle-button"
+            :title="visibleYearsSet.has(year) ? 'Hide' : 'Show'"
+          >
+            <svg v-if="visibleYearsSet.has(year)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+          <div 
+            class="overlay-legend-year-color-box"
+            :style="{ backgroundColor: getYearColor(year) }"
+          ></div>
+          <span class="overlay-legend-year-label">{{ year }}</span>
+        </div>
+      </div>
+      <div class="overlay-legend-footer">
+        <button
+          @click="handleToggleAllYears"
+          class="overlay-legend-toggle-all-button"
+          :title="allYearsVisible ? 'Hide all' : 'Show all'"
+        >
+          {{ allYearsVisible ? 'Hide all' : 'Show all' }}
+        </button>
+      </div>
+    </div>
+    <div v-else-if="currentMode === 'comparison'" class="comparison-legend-content">
+      <div class="comparison-legend-options">
+        <div
+          class="comparison-legend-option"
+          :class="{ 'active': visibleScenariosSet.has('reference') }"
+        >
+          <button
+            @click="handleToggleScenario('reference')"
+            class="comparison-legend-year-toggle-button"
+            :title="visibleScenariosSet.has('reference') ? 'Hide' : 'Show'"
+          >
+            <svg v-if="visibleScenariosSet.has('reference')" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+          <div 
+            class="comparison-legend-year-color-box"
+            :style="{ backgroundColor: 'rgba(59, 130, 246, 0.6)' }"
+          ></div>
+          <span class="comparison-legend-year-label">{{ referenceScenario }}</span>
+        </div>
+        <div
+          class="comparison-legend-option"
+          :class="{ 'active': visibleScenariosSet.has('comparison') }"
+        >
+          <button
+            @click="handleToggleScenario('comparison')"
+            class="comparison-legend-year-toggle-button"
+            :title="visibleScenariosSet.has('comparison') ? 'Hide' : 'Show'"
+          >
+            <svg v-if="visibleScenariosSet.has('comparison')" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+          <div 
+            class="comparison-legend-year-color-box"
+            :style="{ backgroundColor: 'rgba(249, 115, 22, 0.6)' }"
+          ></div>
+          <span class="comparison-legend-year-label">{{ comparisonScenario }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { PROJECTION_CONFIG } from '../config/projections.js'
+
+const props = defineProps({
+  currentMode: {
+    type: String,
+    default: 'default'
+  },
+  currentVisualization: {
+    type: String,
+    default: 'uniform'
+  },
+  visibleYears: {
+    type: Set,
+    default: () => new Set()
+  },
+  minYear: {
+    type: Number,
+    default: PROJECTION_CONFIG.MIN_YEAR
+  },
+  maxYear: {
+    type: Number,
+    default: PROJECTION_CONFIG.MAX_YEAR
+  },
+  referenceScenario: {
+    type: String,
+    default: 'SSP2-4.5'
+  },
+  comparisonScenario: {
+    type: String,
+    default: 'SSP5-8.5'
+  },
+  visibleScenarios: {
+    type: Set,
+    default: () => new Set(['reference', 'comparison'])
+  }
+})
+
+const emit = defineEmits(['year-toggle', 'toggle-all-years', 'scenario-toggle', 'visualization-change'])
+
+const showVisualizationDropdown = ref(false)
+const bivariateCanvas = ref(null)
+
+// Overlay mode: decade years
+const decadeYears = computed(() => {
+  const years = []
+  for (let y = props.minYear; y <= props.maxYear; y += 10) {
+    years.push(y)
+  }
+  return years
+})
+
+// Convert Set prop to reactive Set
+const visibleYearsSet = computed(() => props.visibleYears)
+
+// Convert Set prop to reactive Set for scenarios
+const visibleScenariosSet = computed(() => props.visibleScenarios)
+
+// Check if all years are visible
+const allYearsVisible = computed(() => {
+  return decadeYears.value.every(year => visibleYearsSet.value.has(year))
+})
+
+// Get color for a specific year in overlay mode (gradient from minYear to maxYear)
+const getYearColor = (year) => {
+  const normalized = (year - props.minYear) / (props.maxYear - props.minYear)
+  
+  // Interpolate from blue (minYear) to orange (maxYear)
+  const blue = { r: 59, g: 130, b: 246 }  // #3B82F6
+  const orange = { r: 249, g: 115, b: 22 }    // #F97316
+  
+  const r = Math.round(blue.r + (orange.r - blue.r) * normalized)
+  const g = Math.round(blue.g + (orange.g - blue.g) * normalized)
+  const b = Math.round(blue.b + (orange.b - blue.b) * normalized)
+  
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// Handle year toggle
+const handleToggleYear = (year) => {
+  emit('year-toggle', year)
+}
+
+// Handle toggle all years
+const handleToggleAllYears = () => {
+  emit('toggle-all-years')
+}
+
+// Handle scenario toggle
+const handleToggleScenario = (scenario) => {
+  emit('scenario-toggle', scenario)
+}
+
+const getModeLabel = (mode) => {
+  const labels = {
+    'default': 'Temporal Evolution',
+    'overlay': 'Multi-year Overlay',
+    'comparison': 'Scenario Comparison'
+  }
+  return labels[mode] || 'Temporal Evolution'
+}
+
+// Get visualization label for dropdown button
+const getVisualizationLabel = (mode) => {
+  const labels = {
+    'uniform': 'Uniform',
+    'area-change': 'Change in Area',
+    'volume-change': 'Change in Volume',
+    'bivariate': 'Change in Area & Volume'
+  }
+  return labels[mode] || 'Uniform'
+}
+
+// Function to draw continuous bivariate color field on canvas
+const drawBivariateLegend = () => {
+  if (!bivariateCanvas.value) return
+  
+  const canvas = bivariateCanvas.value
+  const ctx = canvas.getContext('2d')
+  const width = canvas.width
+  const height = canvas.height
+  
+  // Corner colors as RGB
+  const lowLow = { r: 232, g: 244, b: 248 }   // #E8F4F8
+  const highLow = { r: 231, g: 76, b: 60 }   // #E74C3C
+  const lowHigh = { r: 52, g: 152, b: 219 }  // #3498DB
+  const highHigh = { r: 44, g: 62, b: 80 }   // #2C3E50
+  
+  // Bilinear interpolation function
+  const interpolateColor = (x, y) => {
+    // x and y are normalized 0-1 (x = area, y = volume)
+    const r = Math.round(
+      (1 - x) * (1 - y) * lowLow.r +
+      x * (1 - y) * highLow.r +
+      (1 - x) * y * lowHigh.r +
+      x * y * highHigh.r
+    )
+    const g = Math.round(
+      (1 - x) * (1 - y) * lowLow.g +
+      x * (1 - y) * highLow.g +
+      (1 - x) * y * lowHigh.g +
+      x * y * highHigh.g
+    )
+    const b = Math.round(
+      (1 - x) * (1 - y) * lowLow.b +
+      x * (1 - y) * highLow.b +
+      (1 - x) * y * lowHigh.b +
+      x * y * highHigh.b
+    )
+    return `rgb(${r}, ${g}, ${b})`
+  }
+  
+  // Draw each pixel with interpolated color
+  const imageData = ctx.createImageData(width, height)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const normalizedX = x / width  // 0 to 1 (area change: left = low, right = high)
+      const normalizedY = y / height // 0 to 1 (volume change: top = low, bottom = high)
+      
+      const color = interpolateColor(normalizedX, normalizedY)
+      const rgb = color.match(/\d+/g)
+      const r = parseInt(rgb[0])
+      const g = parseInt(rgb[1])
+      const b = parseInt(rgb[2])
+      
+      const index = (y * width + x) * 4
+      imageData.data[index] = r
+      imageData.data[index + 1] = g
+      imageData.data[index + 2] = b
+      imageData.data[index + 3] = 255
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0)
+}
+
+// Handle visualization change
+const handleVisualizationChange = (mode) => {
+  // Close dropdown immediately
+  showVisualizationDropdown.value = false
+  
+  if (props.currentVisualization === mode) {
+    return // Already in this mode
+  }
+  
+  emit('visualization-change', mode)
+  
+  // Redraw bivariate legend if switching to bivariate mode
+  if (mode === 'bivariate') {
+    nextTick(() => {
+      drawBivariateLegend()
+    })
+  }
+}
+
+// Close dropdown when clicking outside
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.legend-container')) {
+    showVisualizationDropdown.value = false
+  }
+}
+
+// Setup click outside handler for dropdown
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  
+  // Draw bivariate legend if in bivariate mode
+  if (props.currentVisualization === 'bivariate') {
+    nextTick(() => {
+      drawBivariateLegend()
+    })
+  }
+})
+
+// Watch for visualization changes to redraw legend
+watch(() => props.currentVisualization, (newVal) => {
+  if (newVal === 'bivariate') {
+    nextTick(() => {
+      drawBivariateLegend()
+    })
+  }
+})
+
+// Cleanup on unmount
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+</script>
+
+<style scoped>
+.legend-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+  min-width: 105px;
+  box-sizing: border-box;
+}
+
+.legend-container-fixed-width {
+  width: 240px;
+}
+
+/* Default mode dropdown */
+.legend-dropdown-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.legend-visualization-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: #888888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.legend-dropdown {
+  position: relative;
+  z-index: 1003;
+  overflow: visible;
+  width: 100%;
+}
+
+.legend-dropdown-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  width: 100%;
+  min-width: 140px;
+  background: #FFFFFF;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333333;
+  transition: all 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.legend-dropdown-button:hover {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+  color: #333333;
+}
+
+.legend-dropdown-button svg {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.legend-dropdown-button svg.rotated {
+  transform: rotate(180deg);
+}
+
+.legend-dropdown-menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 4px);
+  width: max-content;
+  min-width: 100%;
+  white-space: nowrap;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 1002;
+}
+
+.legend-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.legend-dropdown-item:hover {
+  background: #f5f5f5;
+  color: #333333;
+}
+
+.legend-dropdown-item.active {
+  color: #333333;
+  font-weight: 600;
+}
+
+/* Overlay mode legend */
+.overlay-legend-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.overlay-legend-footer {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.overlay-legend-toggle-all-button {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  width: 100%;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.overlay-legend-toggle-all-button:hover {
+  background: #f5f5f5;
+  color: #333;
+  border-color: #d0d0d0;
+}
+
+.overlay-legend-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overlay-legend-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.overlay-legend-year-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.overlay-legend-year-toggle-button svg {
+  width: 100%;
+  height: 100%;
+}
+
+.overlay-legend-year-color-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.overlay-legend-year-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+}
+
+.overlay-legend-option.active .overlay-legend-year-label {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Comparison mode legend */
+.comparison-legend-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.comparison-legend-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comparison-legend-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.comparison-legend-year-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.comparison-legend-year-toggle-button svg {
+  width: 100%;
+  height: 100%;
+}
+
+.comparison-legend-year-color-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.comparison-legend-year-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+}
+
+.comparison-legend-option.active .comparison-legend-year-label {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Dropdown transitions */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.dropdown-enter-to,
+.dropdown-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.legend-bivariate {
+  display: flex;
+  flex-direction: column;
+}
+
+.legend-bivariate-canvas {
+  width: var(--canvas-size, 160px);
+  height: var(--canvas-size, 160px);
+  display: block;
+  box-sizing: border-box;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+.legend-bivariate-axis-container-horizontal {
+  display: flex;
+  flex-direction: column;
+  width: var(--canvas-size, 160px);
+  box-sizing: border-box;
+}
+
+.legend-bivariate-axis {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.legend-bivariate-axis-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+}
+
+.legend-bivariate-axis-container-vertical {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: var(--canvas-size, 160px);
+  box-sizing: border-box;
+}
+
+.legend-bivariate-axis-vertical {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  align-items: flex-start;
+}
+
+.legend-bivariate-axis-label-vertical {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--canvas-size, 160px);
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.legend-label-top,
+.legend-label-bottom {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Gradient legend for area/volume change */
+.legend-gradient-content {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.legend-gradient-bar-horizontal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.legend-gradient-horizontal {
+  width: 100%;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.legend-labels-horizontal {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 2px;
+}
+
+.legend-label-left,
+.legend-label-right {
+  font-size: 12px;
+  color: #666;
+}
+</style>
+
+
