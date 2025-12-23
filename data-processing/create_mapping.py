@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Create mapping.csv file from a shapefile.
-The mapping file contains mapbox-id, sgi_id, and name for each glacier feature.
+The mapping file contains mapbox-id, sgi_id, name, bounds, slope_deg, and aspect_deg for each glacier feature.
 """
 
 from pathlib import Path
@@ -70,6 +70,34 @@ def create_mapping_csv(input_path, output_path):
         name_col = 'name'
         gdf[name_col] = ''
     
+    # Find slope_deg column (could be 'slope_deg', 'slope-deg', 'Slope_deg', etc.)
+    slope_col = None
+    for col in gdf.columns:
+        if col.lower().replace('-', '_') in ['slope_deg', 'slopedeg', 'slope']:
+            slope_col = col
+            break
+    
+    if slope_col is None:
+        print("Warning: No slope_deg column found. Using None for slope_deg.")
+        slope_col = 'slope_deg'
+        gdf[slope_col] = None
+    else:
+        print(f"Found slope column: {slope_col}")
+    
+    # Find aspect_deg column (could be 'aspect_deg', 'aspect-deg', 'Aspect_deg', etc.)
+    aspect_col = None
+    for col in gdf.columns:
+        if col.lower().replace('-', '_') in ['aspect_deg', 'aspectdeg', 'aspect']:
+            aspect_col = col
+            break
+    
+    if aspect_col is None:
+        print("Warning: No aspect_deg column found. Using None for aspect_deg.")
+        aspect_col = 'aspect_deg'
+        gdf[aspect_col] = None
+    else:
+        print(f"Found aspect column: {aspect_col}")
+    
     # Sort by sgi_id to ensure consistent ID assignment
     gdf = gdf.sort_values(by=sgi_id_col).reset_index(drop=True)
     
@@ -92,7 +120,7 @@ def create_mapping_csv(input_path, output_path):
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Create mapping DataFrame with mapbox-id, sgi_id, name, and bounds
+    # Create mapping DataFrame with mapbox-id, sgi_id, name, bounds, slope_deg, and aspect_deg
     mapping_df = pd.DataFrame({
         'mapbox-id': gdf['mapbox-id'],
         'sgi_id': gdf[sgi_id_col],
@@ -100,7 +128,9 @@ def create_mapping_csv(input_path, output_path):
         'min_lng': [b['min_lng'] for b in bounds_list],
         'min_lat': [b['min_lat'] for b in bounds_list],
         'max_lng': [b['max_lng'] for b in bounds_list],
-        'max_lat': [b['max_lat'] for b in bounds_list]
+        'max_lat': [b['max_lat'] for b in bounds_list],
+        'slope_deg': gdf[slope_col],
+        'aspect_deg': gdf[aspect_col]
     })
     
     # Save mapping to CSV

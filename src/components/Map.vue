@@ -6,44 +6,17 @@
       <MapLoadOverlay v-if="!mapLoaded" @load="initializeMap" />
     </Transition>
     
-    <!-- Mode toggle in top-left corner -->
-    <div v-if="mapLoaded" class="mode-toggle">
-      <button
-        @click="mapMode = 'static'"
-        :class="{ active: mapMode === 'static' }"
-        class="mode-toggle-button"
-        title="Static mode"
-      >
-        Static
-      </button>
-      <button
-        @click="mapMode = 'dynamic'"
-        :class="{ active: mapMode === 'dynamic' }"
-        class="mode-toggle-button"
-        title="Dynamic mode"
-      >
-        Dynamic
-      </button>
-      <button
-        @click="mapMode = 'comparison'"
-        :class="{ active: mapMode === 'comparison' }"
-        class="mode-toggle-button"
-        title="Comparison mode"
-      >
-        Comparison
-      </button>
-    </div>
-    
     <!-- Visualization controls below the toggle button (only in dynamic mode) -->
     <div v-if="mapLoaded && mapMode === 'dynamic'" class="visualization-controls-wrapper">
       <VisualizationControls 
         v-model="visualization"
+        :is-static-mode="mapMode === 'overlay'"
         @update:modelValue="handleVisualizationChange"
       />
     </div>
     
-    <!-- Year toggle bar in static mode -->
-    <div v-if="mapLoaded && mapMode === 'static'" class="year-toggle-bar">
+    <!-- Year toggle bar in overlay mode -->
+    <div v-if="mapLoaded && mapMode === 'overlay'" class="year-toggle-bar">
       <div class="year-toggle-header">
         <span class="year-toggle-title">Years</span>
         <button
@@ -171,9 +144,9 @@
           @click="toggleBasemap(true)"
           :class="{ active: isSatellite }"
           class="basemap-toggle-button"
-          title="Satellite map"
+          title="Aerial map"
         >
-          Satellite
+          Aerial
         </button>
       </div>
     </div>
@@ -251,7 +224,7 @@
       </div>
     </div>
     
-    <ProjectionTimeControls
+    <!-- <ProjectionTimeControls
       :map-loaded="mapLoaded"
       :selected-projection="projection"
       :selected-glacier="selectedGlacier"
@@ -261,24 +234,46 @@
       :step="PROJECTION_CONFIG.YEAR_STEP"
       :map="map"
       :get-source-id="getSourceId"
-      :is-static-mode="mapMode === 'static'"
       @projection-change="handleProjectionChange"
       @year-change="handleYearChange"
+      @mode-change="handleModeChange"
+    /> -->
+    
+    <ProjectionControls 
+      :current-year="currentYear"
+      :min-year="PROJECTION_CONFIG.MIN_YEAR"
+      :max-year="PROJECTION_CONFIG.MAX_YEAR"
+      :step="PROJECTION_CONFIG.YEAR_STEP"
+      :selected-projection="projection"
+      :selected-glacier="selectedGlacier"
+      :map="map"
+      :get-source-id="getSourceId"
+      :map-loaded="mapLoaded"
+      :reference-scenario="referenceScenario"
+      :comparison-scenario="comparisonScenario"
+      @year-change="handleYearChange"
+      @projection-change="handleProjectionChange"
+      @mode-change="handleModeChange"
+      @reference-scenario-change="handleReferenceScenarioChange"
+      @comparison-scenario-change="handleComparisonScenarioChange"
     />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
+import mapboxgl from 'mapbox-gl'
 import { useMapboxMap } from '../composables/useMapboxMap.js'
 import { useMapControls } from '../composables/useMapControls.js'
 import { TILESET_IDS } from '../config/mapbox.js'
 import { PROJECTION_CONFIG } from '../config/projections.js'
 import { COLORS } from '../config/colors.js'
+import { swissImage } from '../config/mapStyles.js'
 import SearchBar from './SearchBar.vue'
-import ProjectionTimeControls from './ProjectionTimeControls.vue'
+// import ProjectionTimeControls from './ProjectionTimeControls.vue'
 import MapLoadOverlay from './MapLoadOverlay.vue'
 import VisualizationControls from './VisualizationControls.vue'
+import ProjectionControls from './ProjectionControls.vue'
 
 // Template ref for map container
 const mapboxCanvas = ref(null)
@@ -299,10 +294,10 @@ const showImprintModal = ref(false)
 // Visualization state
 const visualization = ref('uniform')
 
-// Map mode state: 'static', 'dynamic', or 'comparison'
+// Map mode state: 'overlay', 'dynamic', or 'comparison'
 const mapMode = ref('dynamic')
 
-// Year visibility state for static mode
+// Year visibility state for overlay mode
 const decadeYears = []
 for (let y = PROJECTION_CONFIG.MIN_YEAR; y <= PROJECTION_CONFIG.MAX_YEAR; y += 10) {
   decadeYears.push(y)
@@ -314,7 +309,7 @@ const allYearsVisible = computed(() => {
   return decadeYears.every(year => visibleYears.value.has(year))
 })
 
-// Toggle year visibility in static mode
+// Toggle year visibility in overlay mode
 const toggleYear = (year) => {
   if (visibleYears.value.has(year)) {
     visibleYears.value.delete(year)
@@ -323,7 +318,7 @@ const toggleYear = (year) => {
   }
   
   // Recreate all layers to maintain proper ordering
-  if (map.value && mapMode.value === 'static') {
+  if (map.value && mapMode.value === 'overlay') {
     createLayersForProjectionYear(projection.value, currentYear.value)
   }
 }
@@ -339,7 +334,7 @@ const toggleAllYears = () => {
   }
   
   // Recreate all layers to maintain proper ordering
-  if (map.value && mapMode.value === 'static') {
+  if (map.value && mapMode.value === 'overlay') {
     createLayersForProjectionYear(projection.value, currentYear.value)
   }
 }
@@ -408,7 +403,7 @@ onBeforeUnmount(() => {
   }
 })
 
-// Toggle basemap between light and satellite
+// Toggle basemap between light and aerial (Swisstopo SWISSIMAGE)
 const toggleBasemap = (satellite) => {
   if (!map.value) return
   
@@ -423,7 +418,7 @@ const toggleBasemap = (satellite) => {
   isSatellite.value = satellite
   
   const newStyle = isSatellite.value
-    ? 'mapbox://styles/mapbox/satellite-v9'
+    ? swissImage
     : 'mapbox://styles/mapbox/light-v11'
   
   // Reset loaded sources since style change removes all sources
@@ -433,54 +428,9 @@ const toggleBasemap = (satellite) => {
   
   // When style changes, we need to wait for it to load before re-adding sources/layers
   map.value.once('style.load', () => {
-    // Add dark overlay for satellite mode to make it darker
+    // Ensure globe projection is set for custom styles
     if (isSatellite.value) {
-      // Remove existing overlay if it exists
-      if (map.value.getLayer('satellite-dark-overlay')) {
-        map.value.removeLayer('satellite-dark-overlay')
-      }
-      if (map.value.getSource('satellite-dark-overlay')) {
-        map.value.removeSource('satellite-dark-overlay')
-      }
-      
-      // Add a dark overlay source and layer
-      map.value.addSource('satellite-dark-overlay', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: [{
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-180, -90],
-                [180, -90],
-                [180, 90],
-                [-180, 90],
-                [-180, -90]
-              ]]
-            }
-          }]
-        }
-      })
-      
-      map.value.addLayer({
-        id: 'satellite-dark-overlay',
-        type: 'fill',
-        source: 'satellite-dark-overlay',
-        paint: {
-          'fill-color': '#000000',
-          'fill-opacity': 0.25 // 25% dark overlay to darken the satellite imagery
-        }
-      })
-    } else {
-      // Remove dark overlay when switching back to light mode
-      if (map.value.getLayer('satellite-dark-overlay')) {
-        map.value.removeLayer('satellite-dark-overlay')
-      }
-      if (map.value.getSource('satellite-dark-overlay')) {
-        map.value.removeSource('satellite-dark-overlay')
-      }
+      map.value.setProjection('globe')
     }
     
     // Restore 3D state if it was enabled before style change
@@ -538,6 +488,10 @@ const getOutlineId = (proj) => `glacier-outline-${proj}`
 const projection = ref(PROJECTION_CONFIG.DEFAULT_PROJECTION)
 const currentYear = ref(PROJECTION_CONFIG.DEFAULT_YEAR)
 
+// Comparison mode state
+const referenceScenario = ref('SSP2-4.5')
+const comparisonScenario = ref('SSP5-8.5')
+
 // Computed IDs for current projection
 const currentSourceId = computed(() => getSourceId(projection.value))
 const currentLayerId = computed(() => getLayerId(projection.value))
@@ -566,7 +520,6 @@ const getFillColor = () => {
       ['linear'],
       ['get', 'Area change (%)'],
       -100, COLORS.visualization.negative,
-      -50, COLORS.visualization.negativeLight,
       0, COLORS.visualization.neutral
     ]
   } else if (visualization.value === 'volume-change') {
@@ -576,7 +529,6 @@ const getFillColor = () => {
       ['linear'],
       ['get', 'Volume change (%)'],
       -100, COLORS.visualization.negative,
-      -50, COLORS.visualization.negativeLight,
       0, COLORS.visualization.neutral
     ]
   } else if (visualization.value === 'bivariate') {
@@ -748,8 +700,10 @@ const loadGlacierSearchIndex = async () => {
     const minLatIdx = headerParts.findIndex(col => col === 'min_lat')
     const maxLngIdx = headerParts.findIndex(col => col === 'max_lng')
     const maxLatIdx = headerParts.findIndex(col => col === 'max_lat')
+    const slopeDegIdx = headerParts.findIndex(col => col === 'slope_deg' || col === 'slope-deg')
+    const aspectDegIdx = headerParts.findIndex(col => col === 'aspect_deg' || col === 'aspect-deg')
     
-    console.log('[MapNew] CSV columns found:', { mapboxIdIdx, nameIdx, sgiIdIdx, minLngIdx, minLatIdx, maxLngIdx, maxLatIdx, headerParts })
+    console.log('[MapNew] CSV columns found:', { mapboxIdIdx, nameIdx, sgiIdIdx, minLngIdx, minLatIdx, maxLngIdx, maxLatIdx, slopeDegIdx, aspectDegIdx, headerParts })
     
     if (mapboxIdIdx === -1 || nameIdx === -1) {
       console.error('[MapNew] Required columns not found in CSV. Header:', headerParts)
@@ -787,7 +741,9 @@ const loadGlacierSearchIndex = async () => {
         minLngIdx >= 0 ? minLngIdx : -1,
         minLatIdx >= 0 ? minLatIdx : -1,
         maxLngIdx >= 0 ? maxLngIdx : -1,
-        maxLatIdx >= 0 ? maxLatIdx : -1
+        maxLatIdx >= 0 ? maxLatIdx : -1,
+        slopeDegIdx >= 0 ? slopeDegIdx : -1,
+        aspectDegIdx >= 0 ? aspectDegIdx : -1
       )
       
       if (values.length > maxIdx) {
@@ -830,6 +786,21 @@ const loadGlacierSearchIndex = async () => {
               console.warn(`[MapNew] Bounds columns not found. Indices:`, {
                 minLngIdx, minLatIdx, maxLngIdx, maxLatIdx
               })
+            }
+          }
+          
+          // Add slope_deg and aspect_deg if available
+          if (slopeDegIdx >= 0 && values.length > slopeDegIdx) {
+            const slopeDeg = parseFloat(values[slopeDegIdx])
+            if (!isNaN(slopeDeg)) {
+              entry.slope_deg = slopeDeg
+            }
+          }
+          
+          if (aspectDegIdx >= 0 && values.length > aspectDegIdx) {
+            const aspectDeg = parseFloat(values[aspectDegIdx])
+            if (!isNaN(aspectDeg)) {
+              entry.aspect_deg = aspectDeg
             }
           }
           
@@ -1096,6 +1067,150 @@ const handleGlacierSelect = async (result) => {
   }
 }
 
+// Calculate optimal bearing and pitch from terrain
+const calculateTerrainCameraAngle = (bounds) => {
+  if (!map.value) return { bearing: 0, pitch: 50 }
+  
+  const terrain = map.value.getTerrain()
+  if (!terrain) {
+    // If terrain not enabled, return default values
+    return { bearing: 0, pitch: 50 }
+  }
+  
+  const { min_lng, min_lat, max_lng, max_lat } = bounds
+  
+  // Sample elevation at a grid of points within the bounds
+  const gridSize = 5 // 5x5 grid = 25 sample points
+  const lngStep = (max_lng - min_lng) / (gridSize - 1)
+  const latStep = (max_lat - min_lat) / (gridSize - 1)
+  
+  const elevations = []
+  const elevationGrid = []
+  
+  // Sample elevations
+  for (let i = 0; i < gridSize; i++) {
+    const row = []
+    for (let j = 0; j < gridSize; j++) {
+      const lng = min_lng + j * lngStep
+      const lat = min_lat + i * latStep
+      
+      try {
+        const elevation = terrain.getElevation(new mapboxgl.LngLat(lng, lat))
+        elevations.push(elevation)
+        row.push(elevation)
+      } catch (error) {
+        // If elevation query fails, use 0 as fallback
+        row.push(0)
+      }
+    }
+    elevationGrid.push(row)
+  }
+  
+  if (elevations.length === 0) {
+    return { bearing: 0, pitch: 50 }
+  }
+  
+  // Calculate aspect (direction of steepest slope) using gradient
+  // Aspect is the direction the slope faces downhill (0-360 degrees, where 0° = North, 90° = East)
+  let aspectX = 0  // East-West component (positive = eastward slope)
+  let aspectY = 0  // North-South component (positive = northward slope)
+  let totalSlope = 0
+  let sampleCount = 0
+  
+  // Calculate gradients between adjacent points
+  // Account for actual geographic distances
+  for (let i = 0; i < gridSize - 1; i++) {
+    for (let j = 0; j < gridSize - 1; j++) {
+      const e1 = elevationGrid[i][j]
+      const e2 = elevationGrid[i][j + 1]  // Point to the east (increasing longitude)
+      const e3 = elevationGrid[i + 1][j]  // Point to the south (decreasing latitude)
+      
+      // Calculate geographic distances (approximate, in meters)
+      // At these latitudes, 1 degree longitude ≈ 111km * cos(latitude)
+      // 1 degree latitude ≈ 111km
+      const centerLat = (min_lat + max_lat) / 2
+      const lngDist = lngStep * 111000 * Math.cos(centerLat * Math.PI / 180) // meters
+      const latDist = latStep * 111000 // meters
+      
+      // Calculate elevation gradients (elevation change per meter)
+      // dx: positive = terrain higher to the east (slopes down to the west)
+      // dy: positive = terrain higher to the north (slopes down to the south)
+      const dx = (e2 - e1) / lngDist  // East-West gradient (m/m)
+      const dy = (e1 - e3) / latDist  // North-South gradient (m/m) - inverted because lat decreases south
+      
+      // Calculate slope magnitude
+      const slopeMagnitude = Math.sqrt(dx * dx + dy * dy)
+      if (slopeMagnitude > 0) {
+        // Aspect is the direction of steepest descent (downhill)
+        // The gradient vector (dx, dy) points uphill, so we negate it for descent
+        // Then convert to aspect components where:
+        // - aspectX: east component (positive = slopes down east)
+        // - aspectY: north component (positive = slopes down north)
+        // Aspect convention: 0° = North, 90° = East, 180° = South, 270° = West
+        
+        // Weight by slope magnitude to emphasize steeper areas
+        const weight = slopeMagnitude
+        aspectX += -dx * weight  // Negate: positive dx (uphill east) → negative (downhill west)
+        aspectY += -dy * weight  // Negate: positive dy (uphill north) → negative (downhill south)
+        totalSlope += slopeMagnitude
+        sampleCount++
+      }
+    }
+  }
+  
+  if (sampleCount === 0 || totalSlope === 0) {
+    return { bearing: 0, pitch: 50 }
+  }
+  
+  // Calculate weighted average aspect direction (normalized vector)
+  const avgAspectX = aspectX / totalSlope  // East component of descent direction
+  const avgAspectY = aspectY / totalSlope  // North component of descent direction
+  
+  // Calculate aspect angle (direction of steepest descent)
+  // Aspect: 0° = North, 90° = East, 180° = South, 270° = West
+  // atan2(x, y) where x=east, y=north gives angle from north (y-axis)
+  // - atan2(1, 0) = 90° (east) ✓
+  // - atan2(0, 1) = 0° (north) ✓
+  // - atan2(-1, 0) = -90° = 270° (west) ✓
+  // - atan2(0, -1) = 180° (south) ✓
+  let aspect = Math.atan2(avgAspectX, avgAspectY) * (180 / Math.PI)
+  aspect = (aspect + 360) % 360 // Normalize to 0-360
+  
+  // For viewing terrain, we want to look FROM the uphill side TO the downhill side
+  // So bearing should be opposite of aspect (180° rotation)
+  let bearing = (aspect + 180) % 360
+  
+  // Debug logging
+  console.log('[Terrain Camera] Aspect calculation:', {
+    avgAspectX: avgAspectX.toFixed(4),
+    avgAspectY: avgAspectY.toFixed(4),
+    aspect: aspect.toFixed(1) + '°',
+    bearing: bearing.toFixed(1) + '°',
+    avgSlope: (totalSlope / sampleCount).toFixed(4)
+  })
+  
+  // Calculate average slope to determine pitch
+  const avgSlope = totalSlope / sampleCount
+  
+  // Calculate elevation range for additional pitch adjustment
+  const minElev = Math.min(...elevations)
+  const maxElev = Math.max(...elevations)
+  const elevRange = maxElev - minElev
+  
+  // Base pitch on slope and elevation range
+  // Steeper terrain and larger elevation differences = higher pitch
+  // Pitch range: 45-65 degrees
+  let pitch = 45 + (avgSlope * 2) // Base pitch from slope
+  if (elevRange > 500) {
+    pitch += 10 // Add more pitch for dramatic elevation changes
+  } else if (elevRange > 200) {
+    pitch += 5
+  }
+  pitch = Math.min(65, Math.max(45, pitch)) // Clamp between 45-65 degrees
+  
+  return { bearing, pitch }
+}
+
 const zoomToGlacierExtent = () => {
   if (!map.value || !selectedGlacier.value) {
     console.warn('[MapNew] Cannot zoom: map or glacier not available')
@@ -1117,16 +1232,121 @@ const zoomToGlacierExtent = () => {
   }
   
   const { min_lng, min_lat, max_lng, max_lat } = glacierEntry.bounds
+  const bounds = { min_lng, min_lat, max_lng, max_lat }
   
   try {
-    map.value.fitBounds(
-      [[min_lng, min_lat], [max_lng, max_lat]],
-      {
-        padding: { top: 100, bottom: 100, left: 100, right: 100 },
-        duration: 1000
+    // Calculate center point
+    const centerLng = (min_lng + max_lng) / 2
+    const centerLat = (min_lat + max_lat) / 2
+    
+    // If 3D is enabled, use aspect_deg and slope_deg from mapping CSV
+    let bearing = 0
+    let pitch = 50 // Default pitch
+    
+    if (is3D.value) {
+      // Use aspect_deg from mapping CSV if available
+      if (glacierEntry.aspect_deg !== undefined && glacierEntry.aspect_deg !== null) {
+        // Aspect is the direction the terrain faces (downhill)
+        // For viewing, we want to look FROM the uphill side TO the downhill side
+        // So bearing should be opposite of aspect (180° rotation)
+        bearing = (glacierEntry.aspect_deg + 180) % 360
+        console.log('[MapNew] Using aspect_deg from mapping:', {
+          aspect_deg: glacierEntry.aspect_deg,
+          bearing: bearing
+        })
+      } else {
+        // Fallback to terrain calculation if aspect_deg not available
+        const cameraAngle = calculateTerrainCameraAngle(bounds)
+        bearing = cameraAngle.bearing
+        pitch = cameraAngle.pitch
+        console.log('[MapNew] Calculated terrain-based camera angle (aspect_deg not available):', { bearing, pitch })
       }
-    )
-    console.log('[MapNew] ✓ Zoomed to glacier extent from mapping data')
+      
+      // Use slope_deg from mapping CSV to calculate pitch if available
+      if (glacierEntry.slope_deg !== undefined && glacierEntry.slope_deg !== null) {
+        // Base pitch on slope: steeper slopes = higher pitch
+        // Pitch range: 45-65 degrees
+        pitch = 45 + (glacierEntry.slope_deg * 0.5) // Scale slope to pitch
+        pitch = Math.min(65, Math.max(45, pitch)) // Clamp between 45-65 degrees
+        console.log('[MapNew] Using slope_deg from mapping for pitch:', {
+          slope_deg: glacierEntry.slope_deg,
+          pitch: pitch
+        })
+      } else if (glacierEntry.aspect_deg === undefined || glacierEntry.aspect_deg === null) {
+        // Only use terrain-calculated pitch if we also calculated bearing from terrain
+        // (pitch was already set above in the fallback case)
+      }
+    }
+    
+    // Calculate appropriate zoom level based on bounds
+    // This approximates what fitBounds would calculate
+    const lngDiff = max_lng - min_lng
+    const latDiff = max_lat - min_lat
+    const maxDiff = Math.max(lngDiff, latDiff)
+    
+    // Calculate zoom level (approximation of fitBounds algorithm)
+    // Account for padding (100px on each side = 200px total)
+    const paddingFactor = 1.2 // Approximate padding adjustment
+    const adjustedDiff = maxDiff * paddingFactor
+    
+    // Estimate zoom: smaller features need higher zoom
+    let targetZoom = 12 // Default zoom
+    if (adjustedDiff < 0.01) {
+      targetZoom = 14 // Very small glacier
+    } else if (adjustedDiff < 0.05) {
+      targetZoom = 13 // Small glacier
+    } else if (adjustedDiff < 0.1) {
+      targetZoom = 12 // Medium glacier
+    } else if (adjustedDiff < 0.2) {
+      targetZoom = 11 // Large glacier
+    } else {
+      targetZoom = 10 // Very large glacier
+    }
+    
+    // If 3D is enabled, fly to with terrain-based camera angle
+    if (is3D.value) {
+      // Ensure terrain is enabled
+      if (!map.value.getSource('mapbox-dem')) {
+        map.value.addSource('mapbox-dem', {
+          type: 'raster-dem',
+          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 256,
+          maxzoom: 11,
+        })
+      }
+      
+      if (!map.value.getTerrain()) {
+        map.value.setTerrain({
+          source: 'mapbox-dem',
+          exaggeration: 1.0,
+        })
+      }
+      
+      // Fly directly from current camera position to target
+      map.value.flyTo({
+        center: [centerLng, centerLat],
+        zoom: targetZoom,
+        bearing: bearing,
+        pitch: pitch,
+        duration: 2000,
+        essential: true
+      })
+      console.log('[MapNew] ✓ Flying to glacier with 3D camera angle:', {
+        bearing: bearing.toFixed(1) + '°',
+        pitch: pitch.toFixed(1) + '°',
+        zoom: targetZoom.toFixed(1)
+      })
+    } else {
+      // 2D view - use fitBounds
+      map.value.fitBounds(
+        [[min_lng, min_lat], [max_lng, max_lat]],
+        {
+          padding: { top: 100, bottom: 100, left: 100, right: 100 },
+          duration: 1000
+        }
+      )
+      console.log('[MapNew] ✓ Zoomed to glacier extent from mapping data')
+    }
   } catch (error) {
     console.error('[MapNew] Error zooming to glacier extent:', error)
   }
@@ -1172,33 +1392,38 @@ const loadTilesetSource = (proj) => {
 }
 
 // Function to create layers for a projection and year
-// Function to get color for a specific year in static mode (gradient from 2020 to 2100)
+// Function to get color for a specific year in overlay mode (gradient from 2020 to 2100)
 const getYearColor = (year) => {
   const minYear = PROJECTION_CONFIG.MIN_YEAR
   const maxYear = PROJECTION_CONFIG.MAX_YEAR
   // Normalize year to 0-1 range (0 = 2020, 1 = 2100)
   const normalized = (year - minYear) / (maxYear - minYear)
   
-  // Interpolate between lightest blue (#E6F3FF) and darkest blue (#1E3A8A)
-  // Using the same colors as area change visualization
-  const lightBlue = { r: 230, g: 243, b: 255 } // #E6F3FF
-  const darkBlue = { r: 30, g: 58, b: 138 }    // #1E3A8A
+  // Interpolate from blue (2020) to red (2100) for better visual distinction
+  // Blue: #60A5FA (rgb(96, 165, 250))
+  // Red: #EF4444 (rgb(239, 68, 68))
+  const blue = { r: 96, g: 165, b: 250 }  // #60A5FA
+  const red = { r: 239, g: 68, b: 68 }    // #EF4444
   
-  const r = Math.round(lightBlue.r + (darkBlue.r - lightBlue.r) * normalized)
-  const g = Math.round(lightBlue.g + (darkBlue.g - lightBlue.g) * normalized)
-  const b = Math.round(lightBlue.b + (darkBlue.b - lightBlue.b) * normalized)
+  const r = Math.round(blue.r + (red.r - blue.r) * normalized)
+  const g = Math.round(blue.g + (red.g - blue.g) * normalized)
+  const b = Math.round(blue.b + (red.b - blue.b) * normalized)
   
   return `rgb(${r}, ${g}, ${b})`
 }
 
-// Helper to get layer ID for a specific year in static mode
+// Helper to get layer ID for a specific year in overlay mode
 const getStaticLayerId = (proj, year) => `glacier-layer-${proj}-${year}`
 
-// Clean up all static mode layers for a specific projection
+// Helper to get layer ID for comparison mode
+const getComparisonLayerId = (proj) => `glacier-layer-comparison-${proj}`
+const getComparisonOutlineId = (proj) => `glacier-outline-comparison-${proj}`
+
+// Clean up all overlay mode layers for a specific projection
 const cleanupStaticLayers = (proj) => {
   if (!map.value) return
   
-  // Remove all static layers for this projection
+  // Remove all overlay layers for this projection
   for (let year = PROJECTION_CONFIG.MIN_YEAR; year <= PROJECTION_CONFIG.MAX_YEAR; year += 10) {
     const layerId = getStaticLayerId(proj, year)
     if (map.value.getLayer(layerId)) {
@@ -1207,19 +1432,19 @@ const cleanupStaticLayers = (proj) => {
   }
 }
 
-// Clean up all static mode layers for all projections
+// Clean up all overlay mode layers for all projections
 const cleanupAllStaticLayers = () => {
   if (!map.value) return
   
   // Get all available projections
   const projections = Object.keys(TILESET_IDS).filter(proj => TILESET_IDS[proj] !== null)
   
-  // Remove all static layers for all projections
+  // Remove all overlay layers for all projections
   projections.forEach(proj => {
     cleanupStaticLayers(proj)
   })
   
-  console.log('[MapNew] Cleaned up all static mode layers')
+  console.log('[MapNew] Cleaned up all overlay mode layers')
 }
 
 const createLayersForProjectionYear = (proj, year) => {
@@ -1236,9 +1461,75 @@ const createLayersForProjectionYear = (proj, year) => {
     return
   }
 
-  // If in static mode, create overlay layers for every 10 years
-  if (mapMode.value === 'static') {
-    // Clean up any existing static layers
+  // If in comparison mode, create layers for both scenarios
+  if (mapMode.value === 'comparison') {
+    // Clean up any existing comparison layers for all scenarios (in case scenarios changed)
+    const allProjections = Object.keys(TILESET_IDS).filter(p => TILESET_IDS[p] !== null)
+    allProjections.forEach(p => {
+      const compLayerId = getComparisonLayerId(p)
+      const compOutlineId = getComparisonOutlineId(p)
+      if (map.value.getLayer(compLayerId)) map.value.removeLayer(compLayerId)
+      if (map.value.getLayer(compOutlineId)) map.value.removeLayer(compOutlineId)
+    })
+    
+    // Clean up regular layers
+    if (map.value.getLayer(layerId)) map.value.removeLayer(layerId)
+    if (map.value.getLayer(outlineId)) map.value.removeLayer(outlineId)
+    
+    // Clean up overlay layers
+    cleanupStaticLayers(referenceScenario.value)
+    cleanupStaticLayers(comparisonScenario.value)
+    
+    // Ensure both sources are loaded
+    const refSourceId = getSourceId(referenceScenario.value)
+    const compSourceId = getSourceId(comparisonScenario.value)
+    
+    if (!map.value.getSource(refSourceId) || !map.value.getSource(compSourceId)) {
+      console.warn('[MapNew] Sources not ready for comparison mode')
+      return
+    }
+    
+    const refLayerId = getComparisonLayerId(referenceScenario.value)
+    const compLayerId = getComparisonLayerId(comparisonScenario.value)
+    
+    // Create reference scenario layer (bottom layer, more transparent)
+    map.value.addLayer({
+      id: refLayerId,
+      type: 'fill',
+      source: refSourceId,
+      'source-layer': sourceLayerName,
+      paint: {
+        'fill-color': '#60A5FA', // Blue for reference
+        'fill-opacity': 0.5,
+      },
+    })
+    
+    // Create comparison scenario layer (top layer, less transparent)
+    map.value.addLayer({
+      id: compLayerId,
+      type: 'fill',
+      source: compSourceId,
+      'source-layer': sourceLayerName,
+      paint: {
+        'fill-color': '#EF4444', // Red for comparison
+        'fill-opacity': 0.6,
+      },
+    })
+    
+    console.log('[MapNew] Comparison mode layers created for reference:', referenceScenario.value, 'comparison:', comparisonScenario.value, 'year:', year)
+    
+    // Setup click handlers for comparison layers
+    // Use a small delay to ensure layers are fully added to the map
+    setTimeout(async () => {
+      await setupClickHandler()
+    }, 150)
+    
+    return
+  }
+  
+  // If in overlay mode, create overlay layers for every 10 years
+  if (mapMode.value === 'overlay') {
+    // Clean up any existing overlay layers
     cleanupStaticLayers(proj)
     
     // Also clean up regular layers
@@ -1287,13 +1578,24 @@ const createLayersForProjectionYear = (proj, year) => {
       lastAddedLayerId = staticLayerId
     }
     
-    console.log('[MapNew] Static mode layers created for projection:', proj, 'years:', decadeYears)
+    console.log(`[MapNew] ${mapMode.value} mode layers created for projection:`, proj, 'years:', decadeYears)
     return
   }
 
   // Dynamic mode: create single layer for current year
-  // Clean up static layers if they exist
+  // Clean up overlay layers if they exist
   cleanupStaticLayers(proj)
+  
+  // Clean up comparison layers if they exist (only if not in comparison mode)
+  if (mapMode.value !== 'comparison') {
+    const allProjections = Object.keys(TILESET_IDS).filter(p => TILESET_IDS[p] !== null)
+    allProjections.forEach(p => {
+      const compLayerId = getComparisonLayerId(p)
+      const compOutlineId = getComparisonOutlineId(p)
+      if (map.value.getLayer(compLayerId)) map.value.removeLayer(compLayerId)
+      if (map.value.getLayer(compOutlineId)) map.value.removeLayer(compOutlineId)
+    })
+  }
 
   // Clean up handlers before removing layers
   if (handlerLayerId.value === layerId) {
@@ -1382,6 +1684,12 @@ const updateLayersForCurrentYear = () => {
     // Preserve selected feature ID before recreating layers
     const preservedFeatureId = selectedFeatureId.value
     
+    // If in comparison mode, recreate layers for both scenarios with new year
+    if (mapMode.value === 'comparison') {
+      createLayersForProjectionYear(proj, year)
+      return
+    }
+    
     // Use nextTick to batch layer operations
     nextTick(() => {
       // Recreate layers for current projection with new year (source is already loaded, so this is fast)
@@ -1429,21 +1737,61 @@ const updateLayersForCurrentYear = () => {
   }, 100) // 100ms debounce
 }
 
-// Handle projection change
+// Handle mode change
+const handleModeChange = (mode) => {
+  console.log('[MapNew] Mode changed to:', mode)
+  // Map 'default' to 'dynamic', keep 'overlay' and 'comparison' as is
+  const mappedMode = mode === 'default' ? 'dynamic' : mode
+  mapMode.value = mappedMode
+  // When switching to overlay mode, the visualization is handled by the overlay mode layers
+  // When switching to dynamic mode, restore the previous visualization
+  // When switching to comparison mode, create layers for both scenarios
+  if (mappedMode === 'comparison') {
+    createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
+// Handle reference scenario change in comparison mode
+const handleReferenceScenarioChange = (scenario) => {
+  console.log('[MapNew] Reference scenario changed to:', scenario)
+  referenceScenario.value = scenario
+  if (mapMode.value === 'comparison') {
+    createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
+// Handle comparison scenario change in comparison mode
+const handleComparisonScenarioChange = (scenario) => {
+  console.log('[MapNew] Comparison scenario changed to:', scenario)
+  comparisonScenario.value = scenario
+  if (mapMode.value === 'comparison') {
+    createLayersForProjectionYear(projection.value, currentYear.value)
+  }
+}
+
 const handleProjectionChange = (newProjection) => {
   console.log('[MapNew] Projection changed to:', newProjection)
   
   // Preserve selected feature ID before changing projection
   const preservedFeatureId = selectedFeatureId.value
   
+  // Get old projection before updating
+  const oldProjection = projection.value
+  
   // Remove old projection layers
-  const oldLayerId = getLayerId(projection.value)
-  const oldOutlineId = getOutlineId(projection.value)
+  const oldLayerId = getLayerId(oldProjection)
+  const oldOutlineId = getOutlineId(oldProjection)
   if (map.value.getLayer(oldLayerId)) {
     map.value.removeLayer(oldLayerId)
   }
   if (map.value.getLayer(oldOutlineId)) {
     map.value.removeLayer(oldOutlineId)
+  }
+  
+  // If in overlay mode, clean up old projection's overlay layers
+  if (mapMode.value === 'overlay') {
+    cleanupStaticLayers(oldProjection)
+    console.log('[MapNew] Cleaned up overlay layers for old projection:', oldProjection)
   }
   
   // Update projection
@@ -1571,33 +1919,210 @@ let currentMousemoveHandler = null
 let currentMouseleaveHandler = null
 
 const handleGlacierClick = (e) => {
-  if (!e.features || e.features.length === 0) return
+  // In comparison mode, query features from both layers at the click point
+  // This ensures we get features even when layers overlap
+  let features = []
+  if (mapMode.value === 'comparison') {
+    const refLayerId = getComparisonLayerId(referenceScenario.value)
+    const compLayerId = getComparisonLayerId(comparisonScenario.value)
+    
+    // Query features from both layers at the click point
+    const allFeatures = map.value.queryRenderedFeatures(e.point, {
+      layers: [refLayerId, compLayerId]
+    })
+    
+    console.log('[MapNew] Query found', allFeatures.length, 'features at click point in comparison mode', {
+      refLayerId,
+      compLayerId,
+      point: e.point,
+      features: allFeatures.map(f => ({
+        id: f.id,
+        layerId: f.layer?.id,
+        hasProperties: !!f.properties
+      }))
+    })
+    
+    if (allFeatures.length === 0) {
+      console.warn('[MapNew] No features found at click point in comparison mode')
+      return
+    }
+    
+    features = allFeatures
+  } else {
+    // Regular mode: use features from event
+    if (!e.features || e.features.length === 0) return
+    features = e.features
+  }
   
-  const selectedFeature = e.features[0]
+  // Use the topmost feature (first in array, which is the comparison layer in comparison mode)
+  let selectedFeature = features[0]
+  
+  // If we have multiple features in comparison mode, prefer the comparison layer feature
+  if (mapMode.value === 'comparison' && features.length > 1) {
+    const compLayerId = getComparisonLayerId(comparisonScenario.value)
+    const compFeature = features.find(f => f.layer?.id === compLayerId)
+    if (compFeature) {
+      selectedFeature = compFeature
+    }
+  }
   
   // Get feature ID from the selected feature
-  if (selectedFeature.id === undefined || selectedFeature.id === null) {
-    console.warn('[MapNew] Selected feature has no ID')
+  // Try multiple ways to get the ID
+  let featureId = selectedFeature.id
+  
+  // If ID is null/undefined, try to get it from properties
+  if (featureId === undefined || featureId === null || featureId === 'null' || featureId === '') {
+    featureId = selectedFeature.properties?.['mapbox-id'] || 
+                selectedFeature.properties?.id ||
+                selectedFeature.properties?.['sgi-id'] ||
+                selectedFeature.properties?.['mapbox_id']
+    
+    console.log('[MapNew] Feature ID not in id field, trying properties:', {
+      originalId: selectedFeature.id,
+      'mapbox-id': selectedFeature.properties?.['mapbox-id'],
+      'mapbox_id': selectedFeature.properties?.['mapbox_id'],
+      'id': selectedFeature.properties?.id,
+      'sgi-id': selectedFeature.properties?.['sgi-id'],
+      foundId: featureId,
+      allProperties: Object.keys(selectedFeature.properties || {})
+    })
+  }
+  
+  // Final check - if still no valid ID, log and return
+  if (featureId === undefined || featureId === null || featureId === 'null' || featureId === '') {
+    console.warn('[MapNew] Selected feature has no valid ID in any form', {
+      feature: selectedFeature,
+      layerId: selectedFeature.layer?.id,
+      source: selectedFeature.source,
+      sourceLayer: selectedFeature.sourceLayer,
+      properties: selectedFeature.properties,
+      idField: selectedFeature.id
+    })
     return
   }
   
-  const featureId = selectedFeature.id
+  // Convert to string/number as needed (ensure it's not a string "null")
+  if (typeof featureId === 'string' && featureId.toLowerCase() === 'null') {
+    console.warn('[MapNew] Feature ID is string "null", cannot use')
+    return
+  }
   
-  console.log('[MapNew] Feature selected - ID:', featureId)
+  console.log('[MapNew] Feature selected - ID:', featureId, 'from layer:', selectedFeature.layer?.id, 'total features:', features.length)
+  
+  // Calculate bearing from mapping CSV or terrain if 3D is enabled
+  if (is3D.value) {
+    try {
+      // First try to get aspect_deg from mapping CSV
+      const glacierEntry = glacierSearchIndex.value.find(entry => entry.mapbox_id === featureId)
+      
+      if (glacierEntry && glacierEntry.aspect_deg !== undefined && glacierEntry.aspect_deg !== null) {
+        // Use aspect_deg from mapping CSV
+        const bearing = (glacierEntry.aspect_deg + 180) % 360
+        const slopeDeg = glacierEntry.slope_deg !== undefined && glacierEntry.slope_deg !== null
+          ? glacierEntry.slope_deg
+          : null
+        let pitch = 50
+        if (slopeDeg !== null) {
+          pitch = 45 + (slopeDeg * 0.5)
+          pitch = Math.min(65, Math.max(45, pitch))
+        }
+        
+        console.log('[MapNew] 🧭 Using aspect_deg from mapping CSV:', {
+          aspect_deg: glacierEntry.aspect_deg.toFixed(1) + '°',
+          bearing: bearing.toFixed(1) + '°',
+          slope_deg: slopeDeg !== null ? slopeDeg.toFixed(1) + '°' : 'N/A',
+          pitch: pitch.toFixed(1) + '°'
+        })
+      } else if (selectedFeature.geometry) {
+        // Fallback to calculating from terrain
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+        
+        const processCoords = (coords) => {
+          if (Array.isArray(coords[0]) && typeof coords[0][0] === 'number') {
+            coords.forEach(coord => {
+              if (Array.isArray(coord) && coord.length >= 2) {
+                const [lng, lat] = coord
+                minLng = Math.min(minLng, lng)
+                minLat = Math.min(minLat, lat)
+                maxLng = Math.max(maxLng, lng)
+                maxLat = Math.max(maxLat, lat)
+              }
+            })
+          } else {
+            const [lng, lat] = coords
+            minLng = Math.min(minLng, lng)
+            minLat = Math.min(minLat, lat)
+            maxLng = Math.max(maxLng, lng)
+            maxLat = Math.max(maxLat, lat)
+          }
+        }
+        
+        if (selectedFeature.geometry.type === 'Polygon') {
+          selectedFeature.geometry.coordinates[0].forEach(processCoords)
+        } else if (selectedFeature.geometry.type === 'MultiPolygon') {
+          selectedFeature.geometry.coordinates.forEach(polygon => {
+            polygon[0].forEach(processCoords)
+          })
+        }
+        
+        if (minLng !== Infinity && minLat !== Infinity) {
+          const bounds = { min_lng: minLng, min_lat: minLat, max_lng: maxLng, max_lat: maxLat }
+          const cameraAngle = calculateTerrainCameraAngle(bounds)
+          console.log('[MapNew] 🧭 Calculated bearing from terrain (mapping CSV not available):', {
+            bearing: cameraAngle.bearing.toFixed(1) + '°',
+            pitch: cameraAngle.pitch.toFixed(1) + '°',
+            aspect: ((cameraAngle.bearing + 180) % 360).toFixed(1) + '°'
+          })
+        }
+      }
+    } catch (error) {
+      console.warn('[MapNew] Error calculating bearing:', error)
+    }
+  }
+  
+  // Ensure featureId is consistent type (convert to number if it's a numeric string)
+  const normalizedFeatureId = typeof featureId === 'string' && !isNaN(featureId) && !isNaN(parseFloat(featureId))
+    ? parseFloat(featureId)
+    : featureId
   
   // Toggle selected feature (click again to deselect)
-  if (selectedGlacier.value?.id === featureId) {
+  // Compare with type coercion to handle string/number mismatches
+  const currentId = selectedGlacier.value?.id
+  const currentIdNormalized = currentId != null && typeof currentId === 'string' && !isNaN(currentId) && !isNaN(parseFloat(currentId))
+    ? parseFloat(currentId)
+    : currentId
+  
+  // Only consider it the same feature if both IDs are exactly equal (after normalization)
+  const isSameFeature = currentIdNormalized != null && 
+    currentIdNormalized === normalizedFeatureId
+  
+  console.log('[MapNew] Comparing feature IDs:', {
+    currentId,
+    currentIdNormalized,
+    newFeatureId: normalizedFeatureId,
+    currentType: typeof currentId,
+    newType: typeof normalizedFeatureId,
+    isSameFeature,
+    strictEqual: currentIdNormalized === normalizedFeatureId
+  })
+  
+  // In comparison mode, don't allow deselection by clicking the same feature
+  // (since overlapping layers can make it confusing)
+  // Only allow deselection by clicking outside
+  if (isSameFeature && mapMode.value !== 'comparison') {
+    console.log('[MapNew] Deselecting feature (clicked same feature again)')
     selectedGlacier.value = null
     selectedFeatureId.value = null
     searchQuery.value = ''
   } else {
+    console.log('[MapNew] Selecting feature, setting ID:', normalizedFeatureId, isSameFeature ? '(same feature, but keeping selected in comparison mode)' : '(new feature)')
     selectedGlacier.value = {
-      id: featureId,
+      id: normalizedFeatureId,
       name: selectedFeature.properties?.name || null,
       'sgi-id': selectedFeature.properties?.['sgi-id'] || null,
     }
     // Lock the feature ID so it persists across year/scenario changes
-    selectedFeatureId.value = featureId
+    selectedFeatureId.value = normalizedFeatureId
     // Update search bar
     searchQuery.value = selectedFeature.properties?.name || ''
   }
@@ -1605,34 +2130,216 @@ const handleGlacierClick = (e) => {
   // Update layer colors
   updateLayerColors()
   
-  console.log('[MapNew] ✓ Feature selection updated, ID locked:', selectedFeatureId.value)
+  console.log('[MapNew] ✓ Feature selection updated, ID locked:', selectedFeatureId.value, {
+    selectedGlacier: selectedGlacier.value,
+    selectedFeatureId: selectedFeatureId.value
+  })
 }
 
 // Named click-outside handler (set up only once)
 const handleMapClick = (e) => {
-  const layerId = currentLayerId.value
-  // Check if any features from the glacier layer were selected
-  const features = map.value.queryRenderedFeatures(e.point, {
-    layers: [layerId]
-  })
-  
-  // If no glacier features were selected, deselect
-  if (features.length === 0 && selectedGlacier.value !== null) {
-    selectedGlacier.value = null
-    selectedFeatureId.value = null
-    searchQuery.value = ''
-    updateLayerColors()
-    console.log('[MapNew] ✓ Deselected (clicked outside glacier)')
+  // In comparison mode, check both layers
+  if (mapMode.value === 'comparison') {
+    const refLayerId = getComparisonLayerId(referenceScenario.value)
+    const compLayerId = getComparisonLayerId(comparisonScenario.value)
+    const features = map.value.queryRenderedFeatures(e.point, {
+      layers: [refLayerId, compLayerId]
+    })
+    
+    // If no glacier features were selected, deselect
+    if (features.length === 0 && selectedGlacier.value !== null) {
+      selectedGlacier.value = null
+      selectedFeatureId.value = null
+      searchQuery.value = ''
+      updateLayerColors()
+      console.log('[MapNew] ✓ Deselected (clicked outside glacier)')
+    }
+  } else {
+    const layerId = currentLayerId.value
+    // Check if any features from the glacier layer were selected
+    const features = map.value.queryRenderedFeatures(e.point, {
+      layers: [layerId]
+    })
+    
+    // If no glacier features were selected, deselect
+    if (features.length === 0 && selectedGlacier.value !== null) {
+      selectedGlacier.value = null
+      selectedFeatureId.value = null
+      searchQuery.value = ''
+      updateLayerColors()
+      console.log('[MapNew] ✓ Deselected (clicked outside glacier)')
+    }
   }
 }
 
 // Setup click handler for feature selection
-const setupClickHandler = () => {
+const setupClickHandler = async () => {
   if (!map.value) {
     console.warn('[MapNew] Cannot setup click handler: map not available')
     return
   }
   
+  // In comparison mode, set up handlers for both layers
+  if (mapMode.value === 'comparison') {
+    const refLayerId = getComparisonLayerId(referenceScenario.value)
+    const compLayerId = getComparisonLayerId(comparisonScenario.value)
+    
+    // Check if handlers are already set up
+    const comparisonLayerKey = `${refLayerId}-${compLayerId}`
+    if (handlerLayerId.value === comparisonLayerKey) {
+      return
+    }
+    
+    // Ensure both layers exist - retry if not found immediately
+    let retries = 0
+    const maxRetries = 5
+    while ((!map.value.getLayer(refLayerId) || !map.value.getLayer(compLayerId)) && retries < maxRetries) {
+      if (retries > 0) {
+        console.log(`[MapNew] Layers not ready, retrying... (${retries}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      retries++
+    }
+    
+    if (!map.value.getLayer(refLayerId) || !map.value.getLayer(compLayerId)) {
+      console.warn('[MapNew] Cannot setup click handler: comparison layers not found after retries:', { 
+        refLayerId, 
+        compLayerId,
+        refLayerExists: !!map.value.getLayer(refLayerId),
+        compLayerExists: !!map.value.getLayer(compLayerId)
+      })
+      return
+    }
+    
+    console.log('[MapNew] Setting up click handlers for comparison layers:', { refLayerId, compLayerId })
+    
+    // Remove old handlers first
+    if (handlerLayerId.value) {
+      const oldKey = handlerLayerId.value
+      try {
+        // Check if old key is a comparison layer key
+        if (oldKey.includes('-') && oldKey.includes('comparison')) {
+          // Try to extract layer IDs from old key or use current scenarios
+          const oldRefLayerId = getComparisonLayerId(referenceScenario.value)
+          const oldCompLayerId = getComparisonLayerId(comparisonScenario.value)
+          if (currentMousemoveHandler) {
+            map.value.off('mousemove', oldRefLayerId, currentMousemoveHandler)
+            map.value.off('mousemove', oldCompLayerId, currentMousemoveHandler)
+          }
+          if (currentMouseleaveHandler) {
+            map.value.off('mouseleave', oldRefLayerId, currentMouseleaveHandler)
+            map.value.off('mouseleave', oldCompLayerId, currentMouseleaveHandler)
+          }
+          map.value.off('click', oldRefLayerId, handleGlacierClick)
+          map.value.off('click', oldCompLayerId, handleGlacierClick)
+        } else {
+          // Regular layer
+          if (currentMousemoveHandler) {
+            map.value.off('mousemove', oldKey, currentMousemoveHandler)
+          }
+          if (currentMouseleaveHandler) {
+            map.value.off('mouseleave', oldKey, currentMouseleaveHandler)
+          }
+          map.value.off('click', oldKey, handleGlacierClick)
+        }
+      } catch (error) {
+        console.log('[MapNew] Error removing old handlers:', error)
+      }
+      // Clear old handler references
+      currentMousemoveHandler = null
+      currentMouseleaveHandler = null
+    }
+    
+    // Create handler functions
+    currentMousemoveHandler = (e) => {
+      if (map.value) {
+        map.value.getCanvas().style.cursor = 'pointer'
+        
+        if (tooltipTimer) {
+          clearTimeout(tooltipTimer)
+          tooltipTimer = null
+        }
+        
+        // In comparison mode, query both layers to get features even when overlapping
+        let features = []
+        if (mapMode.value === 'comparison') {
+          const refLayerId = getComparisonLayerId(referenceScenario.value)
+          const compLayerId = getComparisonLayerId(comparisonScenario.value)
+          features = map.value.queryRenderedFeatures(e.point, {
+            layers: [refLayerId, compLayerId]
+          })
+        } else {
+          features = e.features || []
+        }
+        
+        if (features.length > 0) {
+          // Prefer comparison layer feature if available
+          const compLayerId = mapMode.value === 'comparison' 
+            ? getComparisonLayerId(comparisonScenario.value)
+            : null
+          const feature = compLayerId 
+            ? features.find(f => f.layer?.id === compLayerId) || features[0]
+            : features[0]
+          
+          const pointX = e.point.x
+          const pointY = e.point.y
+          
+          tooltipTimer = setTimeout(() => {
+            tooltip.value = {
+              visible: true,
+              feature: feature,
+              x: pointX + 10,
+              y: pointY - 10
+            }
+            tooltipTimer = null
+          }, TOOLTIP_DELAY)
+        } else {
+          tooltip.value.visible = false
+          tooltip.value.feature = null
+        }
+      }
+    }
+    
+    currentMouseleaveHandler = () => {
+      if (map.value) {
+        map.value.getCanvas().style.cursor = ''
+      }
+      if (tooltipTimer) {
+        clearTimeout(tooltipTimer)
+        tooltipTimer = null
+      }
+      tooltip.value.visible = false
+      tooltip.value.feature = null
+    }
+    
+    // Add handlers to both layers
+    try {
+      map.value.on('mousemove', refLayerId, currentMousemoveHandler)
+      map.value.on('mouseleave', refLayerId, currentMouseleaveHandler)
+      map.value.on('click', refLayerId, handleGlacierClick)
+      console.log('[MapNew] ✓ Handlers attached to reference layer:', refLayerId)
+      
+      map.value.on('mousemove', compLayerId, currentMousemoveHandler)
+      map.value.on('mouseleave', compLayerId, currentMouseleaveHandler)
+      map.value.on('click', compLayerId, handleGlacierClick)
+      console.log('[MapNew] ✓ Handlers attached to comparison layer:', compLayerId)
+      
+      handlerLayerId.value = comparisonLayerKey
+      
+      // Setup map click handler (only once)
+      if (!mapClickHandlerSetup.value) {
+        map.value.on('click', handleMapClick)
+        mapClickHandlerSetup.value = true
+        console.log('[MapNew] ✓ Map click handler set up')
+      }
+    } catch (error) {
+      console.error('[MapNew] Error attaching handlers to comparison layers:', error)
+    }
+    
+    return
+  }
+  
+  // Regular mode: single layer
   const layerId = currentLayerId.value
   
   // If handlers are already set up for this layer, skip
@@ -1652,18 +2359,36 @@ const setupClickHandler = () => {
   if (handlerLayerId.value) {
     const oldLayerId = handlerLayerId.value
     try {
-      // Remove handlers using stored references if available
-      if (currentMousemoveHandler) {
-        map.value.off('mousemove', oldLayerId, currentMousemoveHandler)
+      // Check if it's a comparison layer key (contains '-')
+      if (oldLayerId.includes('-') && oldLayerId.includes('comparison')) {
+        // It's a comparison layer key, try to remove from both layers
+        const [refLayer, compLayer] = oldLayerId.split('-').slice(-2)
+        const refLayerId = getComparisonLayerId(referenceScenario.value)
+        const compLayerId = getComparisonLayerId(comparisonScenario.value)
+        if (currentMousemoveHandler) {
+          map.value.off('mousemove', refLayerId, currentMousemoveHandler)
+          map.value.off('mousemove', compLayerId, currentMousemoveHandler)
+        }
+        if (currentMouseleaveHandler) {
+          map.value.off('mouseleave', refLayerId, currentMouseleaveHandler)
+          map.value.off('mouseleave', compLayerId, currentMouseleaveHandler)
+        }
+        map.value.off('click', refLayerId, handleGlacierClick)
+        map.value.off('click', compLayerId, handleGlacierClick)
       } else {
-        map.value.off('mousemove', oldLayerId)
+        // Regular layer
+        if (currentMousemoveHandler) {
+          map.value.off('mousemove', oldLayerId, currentMousemoveHandler)
+        } else {
+          map.value.off('mousemove', oldLayerId)
+        }
+        if (currentMouseleaveHandler) {
+          map.value.off('mouseleave', oldLayerId, currentMouseleaveHandler)
+        } else {
+          map.value.off('mouseleave', oldLayerId)
+        }
+        map.value.off('click', oldLayerId, handleGlacierClick)
       }
-      if (currentMouseleaveHandler) {
-        map.value.off('mouseleave', oldLayerId, currentMouseleaveHandler)
-      } else {
-        map.value.off('mouseleave', oldLayerId)
-      }
-      map.value.off('click', oldLayerId, handleGlacierClick)
     } catch (error) {
       // Ignore errors when removing handlers from non-existent layers
       console.log('[MapNew] Error removing old handlers (layer may not exist):', error)
@@ -1762,12 +2487,23 @@ const setupClickHandler = () => {
 watch(mapMode, (newMode, oldMode) => {
   if (!mapLoaded.value || !map.value) return
   
-  if (newMode === 'static') {
-    // When entering static mode, show all years by default
+  if (newMode === 'overlay') {
+    // When entering overlay mode, show all years by default
     visibleYears.value = new Set(decadeYears)
-  } else if (oldMode === 'static') {
-    // When switching away from static mode, clean up ALL static layers first
+  } else if (oldMode === 'overlay') {
+    // When switching away from overlay mode, clean up ALL overlay layers first
     cleanupAllStaticLayers()
+  }
+  
+  // Clean up comparison layers when switching away from comparison mode
+  if (oldMode === 'comparison') {
+    const allProjections = Object.keys(TILESET_IDS).filter(p => TILESET_IDS[p] !== null)
+    allProjections.forEach(p => {
+      const compLayerId = getComparisonLayerId(p)
+      const compOutlineId = getComparisonOutlineId(p)
+      if (map.value.getLayer(compLayerId)) map.value.removeLayer(compLayerId)
+      if (map.value.getLayer(compOutlineId)) map.value.removeLayer(compOutlineId)
+    })
   }
   
   // Recreate layers when switching modes
@@ -1780,11 +2516,17 @@ watch(mapMode, (newMode, oldMode) => {
   }
 })
 
-// Watch for projection changes in static mode
-watch([projection, mapMode], ([newProjection, mode]) => {
-  if (!mapLoaded.value || !map.value || mode !== 'static') return
+// Watch for projection changes in overlay mode
+watch([projection, mapMode], ([newProjection, mode], [oldProjection, oldMode]) => {
+  if (!mapLoaded.value || !map.value || mode !== 'overlay') return
   
-  // Recreate static layers for new projection
+  // Clean up old projection's overlay layers if projection changed
+  if (oldProjection && oldProjection !== newProjection) {
+    cleanupStaticLayers(oldProjection)
+    console.log('[MapNew] Cleaned up overlay layers for old projection:', oldProjection)
+  }
+  
+  // Recreate overlay layers for new projection
   createLayersForProjectionYear(newProjection, currentYear.value)
 })
 
@@ -1987,51 +2729,10 @@ watch(mapLoaded, async (loaded) => {
   font-weight: 600;
 }
 
-.mode-toggle {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 1001;
-  display: flex;
-  gap: 4px;
-  background: #e5e5e5;
-  border-radius: 8px;
-  padding: 2px;
-  height: 40px;
-  box-sizing: border-box;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.mode-toggle-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #666;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  height: 100%;
-  font-family: inherit;
-}
-
-.mode-toggle-button:hover {
-  color: #333;
-}
-
-.mode-toggle-button.active {
-  background: white;
-  color: #333;
-  font-weight: 600;
-}
 
 .visualization-controls-wrapper {
   position: absolute;
-  top: 70px;
+  top: 20px;
   left: 20px;
   z-index: 1000;
 }
@@ -2044,7 +2745,7 @@ watch(mapLoaded, async (loaded) => {
 
 .year-toggle-bar {
   position: absolute;
-  top: 70px;
+  top: 20px;
   left: 20px;
   z-index: 1000;
   background: white;
@@ -2091,7 +2792,7 @@ watch(mapLoaded, async (loaded) => {
 .year-toggle-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .year-toggle-option {
@@ -2107,10 +2808,6 @@ watch(mapLoaded, async (loaded) => {
 
 .year-toggle-option:hover {
   background: #f5f5f5;
-}
-
-.year-toggle-option.active {
-  background: #e8f4f8;
 }
 
 .year-toggle-checkbox {

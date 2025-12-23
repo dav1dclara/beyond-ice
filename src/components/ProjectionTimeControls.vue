@@ -1,6 +1,6 @@
 <template>
-  <div v-if="mapLoaded" class="projection-time-controls-wrapper" :class="{ 'static-mode': isStaticMode }">
-    <div class="scenario-container" :class="{ 'static-mode': isStaticMode }">
+  <div v-if="mapLoaded" class="projection-time-controls-wrapper">
+    <div class="scenario-container">
       <div class="scenario-toggle-section">
         <span
           v-for="scenario in scenarios"
@@ -13,8 +13,20 @@
         </span>
       </div>
     </div>
+    <div class="comparison-toggle-container">
+      <div class="comparison-toggle-section">
+        <span
+          v-for="mode in comparisonModes"
+          :key="mode"
+          class="comparison-toggle-option"
+          :class="{ 'selected': selectedComparisonMode === mode }"
+          @click="selectComparisonMode(mode)"
+        >
+          {{ mode }}
+        </span>
+      </div>
+    </div>
     <button
-      v-if="!isStaticMode"
       @click="toggleExpand"
       class="expand-button"
       :title="isExpanded ? 'Collapse' : 'Expand'"
@@ -46,106 +58,44 @@
       </div>
       <span class="expand-icon">{{ isExpanded ? '▼' : '▲' }}</span>
     </button>
-    <div v-if="!isStaticMode" class="main-container" :class="{ expanded: isExpanded }">
-      <div v-if="isExpanded" class="graph-container">
-        <div v-if="selectedProjection" class="chart-svg-wrapper" @mouseleave="hoveredBar = null">
-          <!-- Loading state -->
-          <div v-if="chartLoading" class="chart-load-placeholder">
-            <span class="loading-text">Loading chart data...</span>
-          </div>
-          <!-- Chart (shown when loaded) -->
-          <div v-if="chartLoaded" class="chart-container">
-            <div class="y-axis-labels">
-              <div 
-                class="y-axis-label y-axis-max"
-                :style="{ top: `${(getBarY(yAxisMax) / chartHeight) * 100}%` }"
-              >
-                {{ formatYAxisValue(yAxisMax) }}
-              </div>
-              <div 
-                class="y-axis-label y-axis-min"
-                :style="{ top: `${(chartHeight / chartHeight) * 100}%` }"
-              >
-                0
-              </div>
-            </div>
-            <div class="chart-svg-container">
-              <svg class="bar-chart-svg" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none">
-                <!-- Horizontal reference lines -->
-                <line
-                  :x1="-10"
-                  :y1="chartHeight"
-                  :x2="chartWidth"
-                  :y2="chartHeight"
-                  stroke="#d0d0d0"
-                  stroke-width="1"
-                  opacity="0.5"
-                />
-                <line
-                  :x1="-10"
-                  :y1="getBarY(yAxisMax)"
-                  :x2="chartWidth"
-                  :y2="getBarY(yAxisMax)"
-                  stroke="#d0d0d0"
-                  stroke-width="1"
-                  opacity="0.5"
-                />
-                <!-- Bars -->
-                <path
-                  v-for="(dataPoint, index) in chartData"
-                  :key="`bar-${index}`"
-                  :d="getBarPath(
-                    getBarX(index),
-                    getBarY(getChartValue(dataPoint)),
-                    barWidth,
-                    getChartValue(dataPoint) === null ? 0.1 : Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
-                  )"
-                  :fill="dataPoint.year === currentYear ? COLORS.chart.barCurrentYear : COLORS.chart.barDefault"
-                  :opacity="getChartValue(dataPoint) === null ? 0 : 1"
-                  @mouseenter="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
-                  @mousemove="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
-                  @click="getChartValue(dataPoint) !== null && handleBarClick(dataPoint)"
-                  :style="{ cursor: getChartValue(dataPoint) !== null ? 'pointer' : 'default' }"
-                />
-              </svg>
-              <div class="chart-metric-toggle">
-                <button
-                  @click="selectedMetric = 'area'"
-                  :class="{ active: selectedMetric === 'area' }"
-                  class="metric-button"
-                >
-                  Area (km²)
-                </button>
-                <button
-                  @click="selectedMetric = 'volume'"
-                  :class="{ active: selectedMetric === 'volume' }"
-                  class="metric-button"
-                >
-                  Volume (km³)
-                </button>
-              </div>
-            </div>
-          </div>
-          <!-- Tooltip -->
-          <div 
-            v-if="hoveredBar !== null"
-            class="chart-tooltip"
-            :style="tooltipStyle"
-          >
-            <div class="tooltip-year">{{ hoveredBar.year }}</div>
-            <div class="tooltip-value">
-              {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit() }}
-            </div>
-            <div v-if="hoveredBar.change !== null && hoveredBar.change !== undefined" class="tooltip-change">
-              {{ formatChange(hoveredBar.change) }} since 2020
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="main-container" :class="{ expanded: isExpanded }">
+      <EvolutionGraph
+        v-if="isExpanded"
+        :selected-projection="selectedProjection"
+        :selected-glacier="selectedGlacier"
+        :current-year="currentYear"
+        :min-year="minYear"
+        :max-year="maxYear"
+        :step="step"
+        :map="map"
+        :get-source-id="getSourceId"
+        :map-loaded="mapLoaded"
+        @year-change="handleBarClick"
+      />
+      <button
+        @click="toggleNewButton"
+        class="play-button new-button"
+        :class="{ active: isNewButtonActive }"
+        :title="isNewButtonActive ? 'Static mode (click to unlock and switch to dynamic)' : 'Dynamic mode (click to lock and switch to static)'"
+      >
+        <!-- Static mode icon: lock (when active) -->
+        <svg v-if="isNewButtonActive" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <!-- Dynamic mode icon: unlock (when inactive) -->
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 8.13-3.13"/>
+          <line x1="12" y1="11" x2="12" y2="7"/>
+        </svg>
+      </button>
       <button
         @click="togglePlay"
         class="play-button"
-        :title="isPlaying ? 'Pause animation' : 'Play animation'"
+        :class="{ disabled: isNewButtonActive }"
+        :disabled="isNewButtonActive"
+        :title="isNewButtonActive ? 'Disabled' : (isPlaying ? 'Pause animation' : 'Play animation')"
       >
         <svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M8 5v14l11-7z"/>
@@ -171,7 +121,9 @@
             :step="step"
             :value="currentYear"
             @input="handleYearChange"
+            :disabled="isNewButtonActive"
             class="time-slider"
+            :class="{ disabled: isNewButtonActive }"
           />
           <div class="year-labels">
           <span
@@ -191,6 +143,7 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { COLORS } from '../config/colors.js'
+import EvolutionGraph from './EvolutionGraph.vue'
 
 const props = defineProps({
   mapLoaded: {
@@ -229,18 +182,36 @@ const props = defineProps({
     type: Function,
     default: null
   },
-  isStaticMode: {
-    type: Boolean,
-    default: false
-  }
 })
 
-const emit = defineEmits(['projection-change', 'year-change'])
+const emit = defineEmits(['projection-change', 'year-change', 'mode-change'])
 
 // Play animation state
 const isPlaying = ref(false)
 let playInterval = null
 const playSpeed = 500 // milliseconds per year step
+
+// New button state
+const isNewButtonActive = ref(false)
+
+// Comparison mode state
+const selectedComparisonMode = ref('default')
+const comparisonModes = ['default', 'overlay', 'comparison']
+
+const selectComparisonMode = (mode) => {
+  selectedComparisonMode.value = mode
+  // No functionality yet - just update the selection
+}
+
+const toggleNewButton = () => {
+  isNewButtonActive.value = !isNewButtonActive.value
+  // Stop animation if it's playing when disabling
+  if (isNewButtonActive.value && isPlaying.value) {
+    stopAnimation()
+  }
+  // Emit mode change event: 'static' when active, 'dynamic' when inactive
+  emit('mode-change', isNewButtonActive.value ? 'static' : 'dynamic')
+}
 
 const scenarios = ['SSP1-2.6', 'SSP2-4.5', 'SSP3-7.0', 'SSP5-8.5']
 
@@ -258,6 +229,10 @@ const toggleExpand = () => {
 }
 
 const handleYearChange = (event) => {
+  // Don't allow year changes if new button is active
+  if (isNewButtonActive.value) {
+    return
+  }
   const year = parseInt(event.target.value)
   // If user manually changes year while playing, stop animation
   if (isPlaying.value) {
@@ -266,16 +241,20 @@ const handleYearChange = (event) => {
   emit('year-change', year)
 }
 
-const handleBarClick = (dataPoint) => {
+const handleBarClick = (year) => {
   // If user clicks on a bar while playing, stop animation
   if (isPlaying.value) {
     stopAnimation()
   }
-  emit('year-change', dataPoint.year)
+  emit('year-change', year)
 }
 
 // Toggle play/pause animation
 const togglePlay = () => {
+  // Don't allow play if new button is active
+  if (isNewButtonActive.value) {
+    return
+  }
   if (isPlaying.value) {
     stopAnimation()
   } else {
@@ -412,18 +391,7 @@ const getYearMarkerStyle = (year) => {
   }
 }
 
-// Bar chart data and calculations
-const chartData = ref([])
-const chartWidth = 400
-const chartHeight = 120
-const barWidth = 8
-const selectedMetric = ref('area')
-const hoveredBar = ref(null)
-const tooltipStyle = ref({})
-const chartLoaded = ref(false)
-const chartLoading = ref(false)
-const lastLoadedGlacierId = ref(null)
-const lastLoadedProjection = ref(null)
+// Chart-related code has been moved to EvolutionGraph.vue component
 
 // Helper function to check if source is ready
 const isSourceReady = (projection) => {
@@ -576,332 +544,9 @@ const loadOverallDataFromCSV = async (projection) => {
   }
 }
 
-const loadChartData = async () => {
-  if (!props.selectedProjection) {
-    chartData.value = []
-    chartLoaded.value = false
-    chartLoading.value = false
-    return
-  }
+// loadChartData has been moved to EvolutionGraph.vue component
 
-  // Clear existing chart data immediately
-  chartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  
-  try {
-    const years = []
-    for (let year = props.minYear; year <= props.maxYear; year += props.step) {
-      years.push(year)
-    }
-
-    const glacierId = props.selectedGlacier?.id ?? null
-    const isOverallView = !glacierId
-    
-    // For overall view, ALWAYS use CSV (no fallback to tileset)
-    if (isOverallView) {
-      const csvData = await loadOverallDataFromCSV(props.selectedProjection)
-      
-      if (csvData && csvData.length > 0) {
-        // Filter to only years we need and sort
-        const filteredData = csvData
-          .filter(d => years.includes(d.year))
-          .sort((a, b) => a.year - b.year)
-        
-        // Add small delay to ensure loading state is visible
-        await new Promise(resolve => setTimeout(resolve, 200))
-        
-        chartData.value = filteredData
-        chartLoaded.value = true
-        chartLoading.value = false
-        return
-      }
-      
-      // CSV not available - show error/empty state (no fallback)
-      console.error('[BarChart] CSV file not available for overall view. Please generate CSV files first.')
-      await new Promise(resolve => setTimeout(resolve, 200))
-      chartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      return
-    }
-    
-    // For individual glacier, use tileset
-    if (!props.map || !props.getSourceId) {
-      chartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      return
-    }
-    
-    // Wait for source to be ready (with retry logic)
-    let retries = 0
-    const maxRetries = 10
-    const retryDelay = 100
-    
-    while (!isSourceReady(props.selectedProjection) && retries < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, retryDelay))
-      retries++
-    }
-    
-    if (!isSourceReady(props.selectedProjection)) {
-      console.error(`[BarChart] Source not ready after ${maxRetries} retries for projection: ${props.selectedProjection}`)
-      chartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      return
-    }
-    
-    const results = []
-    
-    // Process all years for individual glacier (overall view uses CSV only)
-    const processYears = async () => {
-      try {
-        // Process all years at once for individual glacier (fast)
-        const batchSize = years.length
-        
-        for (let i = 0; i < years.length; i += batchSize) {
-          const batch = years.slice(i, Math.min(i + batchSize, years.length))
-          
-          // Process batch synchronously
-          for (const year of batch) {
-            try {
-              const features = queryTilesetFeatures(props.selectedProjection, year)
-              
-              // Get data for selected glacier (overall view uses CSV only)
-              const feature = features.find(f => 
-                f.id === glacierId || 
-                String(f.id) === String(glacierId)
-              )
-              
-              if (feature) {
-                const featureProps = feature.properties || {}
-                const { area, volume } = extractAreaVolume(featureProps)
-                const areaChangePercent = featureProps['Area change (%)'] ?? null
-                const volumeChangePercent = featureProps['Volume change (%)'] ?? null
-                
-                results.push({
-                  year,
-                  area,
-                  volume,
-                  areaChange: areaChangePercent,
-                  volumeChange: volumeChangePercent,
-                  exists: true
-                })
-              } else {
-                // Glacier doesn't exist in this year - set values to null to hide the bar
-                results.push({
-                  year,
-                  area: null,
-                  volume: null,
-                  areaChange: null,
-                  volumeChange: null,
-                  exists: false
-                })
-              }
-            } catch (error) {
-              console.warn(`[BarChart] Error loading data for year ${year}:`, error)
-              results.push({
-                year,
-                area: null,
-                volume: null,
-                areaChange: null,
-                volumeChange: null,
-                exists: false
-              })
-            }
-          }
-          
-          // Update chart incrementally
-          chartData.value = [...results].sort((a, b) => a.year - b.year)
-        }
-        
-        // Final update - ensure sorted
-        chartData.value = results.sort((a, b) => a.year - b.year)
-        chartLoaded.value = true
-        chartLoading.value = false
-      } catch (error) {
-        console.error('[BarChart] Error in processYears:', error)
-        // Show what we have so far
-        chartData.value = results.sort((a, b) => a.year - b.year)
-        chartLoaded.value = true
-        chartLoading.value = false
-      }
-    }
-    
-    // Start processing
-    processYears()
-  } catch (error) {
-    console.error('[BarChart] Error loading chart data:', error)
-    chartData.value = []
-    chartLoaded.value = false
-    chartLoading.value = false
-  }
-}
-
-const getBarX = (index) => {
-  if (chartData.value.length === 0) return 0
-  const spacing = (chartWidth - barWidth) / (chartData.value.length - 1 || 1)
-  return index * spacing
-}
-
-// Get the chart value - always use absolute value
-const getChartValue = (dataPoint) => {
-  const value = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
-  // Return null if glacier doesn't exist (to hide the bar)
-  if (dataPoint.exists === false) {
-    return null
-  }
-  return value
-}
-
-// Get tooltip unit
-const getTooltipUnit = () => {
-  return selectedMetric.value === 'area' ? 'km²' : 'km³'
-}
-
-// Get min and max values for the chart
-const getChartMinMax = () => {
-  if (chartData.value.length === 0) return { min: 0, max: 1 }
-  // Filter out null values (glaciers that don't exist) for y-axis calculation
-  const values = chartData.value.map(d => getChartValue(d)).filter(v => v !== null && v !== undefined)
-  if (values.length === 0) return { min: 0, max: 1 }
-  return {
-    min: 0, // Always start from 0
-    max: Math.max(...values)
-  }
-}
-
-// Calculate rounded up max value for Y-axis
-const yAxisMax = computed(() => {
-  const { max } = getChartMinMax()
-  if (max === 0) return 1
-  
-  // Round up to a nice number, but keep it closer to the actual max
-  const magnitude = Math.pow(10, Math.floor(Math.log10(max)))
-  const normalized = max / magnitude
-  
-  // Nice numbers to round to
-  const niceNumbers = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10]
-  
-  // Find the next nice number that's strictly greater than normalized
-  // If normalized exactly matches a nice number, use the next one
-  const rounded = niceNumbers.find(n => n > normalized) || 10
-  
-  return rounded * magnitude
-})
-
-// Format Y-axis value
-const formatYAxisValue = (value) => {
-  if (value < 0.01) {
-    return value.toExponential(1)
-  } else if (value < 1) {
-    return value.toFixed(2)
-  } else if (value < 100) {
-    return value.toFixed(1)
-  } else {
-    return Math.round(value).toLocaleString()
-  }
-}
-
-const getBarY = (value) => {
-  if (chartData.value.length === 0) return chartHeight
-  const max = yAxisMax.value // Use rounded max for scaling
-  const range = max || 1
-  // If glacier doesn't exist (value is null), hide the bar completely
-  if (value === null || value === undefined) {
-    return chartHeight // Bar height will be 0
-  }
-  // For 0 values, show a small bar at the bottom instead of no bar
-  if (value === 0) {
-    return chartHeight - 2 // 2px bar height for zero values
-  }
-  return chartHeight - ((value / range) * chartHeight)
-}
-
-const getBarPath = (x, y, width, height) => {
-  const radius = 4
-  // Path for rectangle with only top corners rounded
-  // Start from top-left (after rounded corner)
-  return `M ${x + radius} ${y} 
-          L ${x + width - radius} ${y} 
-          Q ${x + width} ${y} ${x + width} ${y + radius} 
-          L ${x + width} ${y + height} 
-          L ${x} ${y + height} 
-          L ${x} ${y + radius} 
-          Q ${x} ${y} ${x + radius} ${y} 
-          Z`
-}
-
-const handleBarHover = (dataPoint, index, event) => {
-  // Get absolute value for display
-  const absoluteValue = getChartValue(dataPoint)
-  
-  // Get relative change from first year
-  let relativeChange = null
-  if (chartData.value.length > 0) {
-    const firstYearData = chartData.value[0]
-    const firstYearValue = selectedMetric.value === 'area' ? firstYearData.area : firstYearData.volume
-    const currentValue = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
-    
-    if (firstYearValue > 0 && firstYearValue !== null && firstYearValue !== undefined) {
-      relativeChange = ((currentValue - firstYearValue) / firstYearValue) * 100
-    }
-  }
-  
-  hoveredBar.value = {
-    year: dataPoint.year,
-    value: absoluteValue,
-    change: relativeChange
-  }
-  
-  // Position tooltip near the cursor
-  const svgElement = event.currentTarget.closest('.chart-svg-wrapper')
-  if (svgElement) {
-    const rect = svgElement.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    
-    // Calculate tooltip position, keeping it within bounds
-    const tooltipWidth = 100 // Approximate tooltip width
-    const tooltipHeight = 50 // Approximate tooltip height
-    let left = x + 10
-    let top = y - 40
-    
-    // Keep tooltip within wrapper bounds
-    if (left + tooltipWidth > rect.width) {
-      left = x - tooltipWidth - 10
-    }
-    if (top < 0) {
-      top = y + 20
-    }
-    if (top + tooltipHeight > rect.height) {
-      top = rect.height - tooltipHeight - 10
-    }
-    
-    tooltipStyle.value = {
-      left: `${Math.max(0, left)}px`,
-      top: `${Math.max(0, top)}px`
-    }
-  }
-}
-
-const formatValue = (value) => {
-  if (value === null || value === undefined || value === 0) {
-    return '0'
-  }
-  
-  // Format with appropriate decimal places for absolute values
-  if (value < 0.01) {
-    return value.toExponential(2)
-  } else if (value < 1) {
-    return value.toFixed(3)
-  } else if (value < 100) {
-    return value.toFixed(2)
-  } else {
-    return value.toFixed(1)
-  }
-}
+// Chart-related functions have been moved to EvolutionGraph.vue component
 
 // Area and volume for title display
 const displayArea = ref(null)
@@ -1087,129 +732,7 @@ const formatAreaVolume = (value) => {
   }
 }
 
-// Helper to trigger chart loading
-const triggerChartLoad = async (force = false) => {
-  // Only reload if we have a projection
-  if (!props.selectedProjection) {
-    return
-  }
-  
-  // For overall view, we don't need map to be loaded (uses CSV)
-  const isOverallView = !props.selectedGlacier || !props.selectedGlacier.id
-  if (!isOverallView && !props.mapLoaded) {
-    return
-  }
-  
-  const currentGlacierId = props.selectedGlacier?.id ?? null
-  
-  // Check if view type changed (overall <-> glacier) or glacier changed
-  const wasOverallView = lastLoadedGlacierId.value === null
-  const isNowOverallView = currentGlacierId === null
-  const viewTypeChanged = wasOverallView !== isNowOverallView
-  const glacierChanged = currentGlacierId !== lastLoadedGlacierId.value
-  const projectionChanged = props.selectedProjection !== lastLoadedProjection.value
-  
-  // IMPORTANT: Only reload if glacier or projection changed, NOT on year changes
-  const hasActualChange = viewTypeChanged || glacierChanged || projectionChanged
-  
-  // Only proceed if forced, or if there's an actual change
-  // If chartLoading is already true but there's no actual change, don't reload
-  if (!force && !hasActualChange) {
-    // No actual change detected - don't reload
-    // This prevents reloads when only year changes
-    return
-  }
-  
-  // Ensure loading state is shown
-  if (!chartLoading.value) {
-    chartData.value = []
-    chartLoaded.value = false
-    chartLoading.value = true
-  }
-  
-  // Update tracking variables AFTER we've determined we should load
-  // This ensures the next change will be detected
-  lastLoadedGlacierId.value = currentGlacierId
-  lastLoadedProjection.value = props.selectedProjection
-  
-  // If projection changed, add a small delay to ensure source is ready
-  if (projectionChanged) {
-    await new Promise(resolve => setTimeout(resolve, 150))
-  }
-  
-  loadChartData()
-}
-
-// Watch for map loaded - trigger initial load when map becomes ready
-watch(() => props.mapLoaded, (loaded) => {
-  if (loaded && props.selectedProjection) {
-    // Map just became ready, trigger initial load
-    triggerChartLoad(true)
-  }
-})
-
-// Watch for changes - auto-load chart when glacier or projection changes (NOT on year changes)
-watch([() => props.selectedGlacier, () => props.selectedProjection], async (newValues, oldValues) => {
-  // Skip on initial immediate call if values haven't changed
-  if (oldValues === undefined) {
-    await triggerChartLoad()
-    return
-  }
-  
-  // Extract IDs for comparison (not object references)
-  const newGlacier = newValues[0]
-  const oldGlacier = oldValues[0]
-  const newGlacierId = newGlacier?.id ?? null
-  const oldGlacierId = oldGlacier?.id ?? null
-  const newProjection = newValues[1]
-  const oldProjection = oldValues[1]
-  
-  // Check if anything changed - compare IDs, not object references
-  // This prevents false positives when objects are recreated with same ID
-  const glacierIdChanged = newGlacierId !== oldGlacierId
-  const projectionChanged = newProjection !== oldProjection
-  
-  // Only proceed if glacier ID or projection actually changed (NOT on year changes)
-  if (!glacierIdChanged && !projectionChanged) {
-    // Nothing changed, don't reload - this prevents reloads on year changes
-    return
-  }
-  
-  // If glacier or projection changed, clear chart immediately and wait 0.5 seconds
-  // Clear chart immediately - make it blank
-  chartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  
-  // Wait 0.5 seconds before loading new data (chart stays blank during this time)
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  await triggerChartLoad()
-}, { immediate: true })
-
-// Watch for metric changes - clear chart and show loading state
-watch(() => selectedMetric.value, async () => {
-  // Store current data before clearing
-  const currentData = chartData.value.length > 0 ? [...chartData.value] : null
-  
-  // Clear chart data immediately - make it blank
-  chartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  hoveredBar.value = null
-  
-  // Wait 0.5 seconds before showing chart again (chart stays blank during this time)
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  if (props.selectedProjection && currentData) {
-    // Restore the data - it already contains both area and volume
-    chartData.value = currentData
-    chartLoading.value = false
-    chartLoaded.value = true
-  } else {
-    chartLoading.value = false
-  }
-})
+// Chart-related watchers have been moved to EvolutionGraph.vue component
 
 // Watch for changes to load area/volume data
 watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.currentYear], () => {
@@ -1228,18 +751,6 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   /* outline: 2px solid red; */
 }
 
-.projection-time-controls-wrapper.static-mode {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  pointer-events: none;
-}
-
-.projection-time-controls-wrapper.static-mode .scenario-container {
-  pointer-events: auto;
-}
-
 .scenario-container {
   position: absolute;
   bottom: 100%;
@@ -1247,16 +758,6 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   margin-bottom: 0;
   /* outline: 2px solid blue; */
   z-index: 1012;
-}
-
-.projection-time-controls-wrapper.static-mode .scenario-container {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  margin-bottom: 0;
-  bottom: 20px !important;
 }
 
 .scenario-toggle-section {
@@ -1278,13 +779,6 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   z-index: 1011;
 }
 
-.projection-time-controls-wrapper.static-mode .scenario-toggle-section {
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  border-bottom-left-radius: 10px;
-  border-bottom-right-radius: 10px;
-  clip-path: none;
-}
 
 .scenario-toggle-option {
   flex: 1;
@@ -1346,15 +840,6 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
               padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.projection-time-controls-wrapper.static-mode .scenario-toggle-option.selected {
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  border-bottom-left-radius: 10px;
-  border-bottom-right-radius: 10px;
-  margin-bottom: 0;
-  padding-bottom: 0;
-  transform: scale(1);
-}
 
 .main-container {
   --y-axis-width: 40px;
@@ -1427,189 +912,11 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   color: #999;
 }
 
-.graph-container {
-  position: relative;
-  width: calc(100%);
-  height: 150px;
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  /* outline: 2px dashed green; */
-}
-
-.glacier-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.chart-metric-toggle {
-  display: flex;
-  gap: 4px;
-  background: #e5e5e5;
-  border-radius: 6px;
-  padding: 2px;
-}
-
-.chart-mode-toggle {
-  display: flex;
-  gap: 4px;
-  background: #e5e5e5;
-  border-radius: 6px;
-  padding: 2px;
-}
-
-.metric-button,
-.mode-button {
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #666;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.metric-button:hover,
-.mode-button:hover {
-  color: #333;
-}
-
-.metric-button.active,
-.mode-button.active {
-  background: white;
-  color: #333;
-  font-weight: 600;
-}
-
-.chart-svg-wrapper {
-  position: relative;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-}
-
-.chart-load-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  min-height: 120px;
-}
-
-.loading-text {
-  font-size: 14px;
-  color: #666;
-}
-
-.chart-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.chart-svg-container {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-}
-
-.y-axis-labels {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  padding-right: 8px;
-  font-size: 12px;
-  color: #666;
-  width: var(--y-axis-width, 40px);
-  height: 100%;
-  position: relative;
-  /* outline: 2px dashed red; */
-}
-
-.y-axis-label {
-  white-space: nowrap;
-  position: absolute;
-  /* outline: 2px dashed blue; */
-}
-
-.y-axis-max {
-  transform: translateY(-50%);
-}
-
-.y-axis-min {
-  transform: translateY(-50%);
-}
-
-.bar-chart-svg {
-  flex: 1;
-  height: 100%;
-  display: block;
-  /* outline: green solid 2px; */
-}
-
-.chart-svg-container .chart-metric-toggle {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 4px;
-  background: #e5e5e5 !important;
-  border-radius: 6px;
-  padding: 2px;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.chart-tooltip {
-  position: absolute;
-  background: rgba(117, 116, 116, 0.85);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  pointer-events: none;
-  z-index: 1000;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.tooltip-year {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.tooltip-value {
-  font-size: 11px;
-  opacity: 0.9;
-}
-
-.tooltip-change {
-  font-size: 11px;
-  opacity: 0.8;
-  margin-top: 2px;
-}
+/* Chart-related CSS has been moved to EvolutionGraph.vue component */
 
 .play-button {
   position: absolute;
-  left: 16px;
+  left: 56px; /* Moved right to make room for new button (16px + 32px + 8px gap) */
   bottom: 11px;
   width: 32px;
   height: 32px;
@@ -1627,9 +934,24 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   z-index: 1002;
 }
 
-.play-button:hover {
+.play-button.new-button {
+  left: 16px; /* Position to the left of play button */
+}
+
+.play-button:hover:not(.disabled) {
   background: #f5f5f5;
   transform: scale(1.05);
+  border-color: #d0d0d0;
+}
+
+.play-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.play-button.new-button.active {
+  background: #e5e5e5;
   border-color: #d0d0d0;
 }
 
@@ -1640,9 +962,9 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
 
 .timeslider-container {
   position: relative;
-  margin-left: calc(var(--y-axis-width, 40px) + 24px);
+  margin-left: calc(var(--y-axis-width, 40px) + 64px); /* Increased from 24px to 64px to accommodate both buttons (32px + 8px gap + 32px + 8px margin) */
   margin-right: 8px;
-  width: calc(100% - var(--y-axis-width, 40px) - 24px);
+  width: calc(100% - var(--y-axis-width, 40px) - 64px);
   padding-bottom: 0;
   display: flex;
   flex-direction: column;
@@ -1735,6 +1057,93 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   margin-top: 2px;
 }
 
+
+.comparison-toggle-container {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0;
+  z-index: 1012;
+}
+
+.comparison-toggle-section {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 300px;
+  height: 32px;
+  flex-shrink: 0;
+  background: #e5e5e5;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  clip-path: inset(-10px -10px 0 -10px);
+  gap: 2px;
+  z-index: 1011;
+}
+
+.comparison-toggle-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 400;
+  color: #666;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              font-weight 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  position: relative;
+  z-index: 1003;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  height: 100%;
+  border-radius: 0;
+}
+
+.comparison-toggle-option:hover {
+  color: #333;
+  font-weight: 500;
+}
+
+.comparison-toggle-option:active {
+  transform: scale(0.95);
+}
+
+.comparison-toggle-option.selected {
+  color: #333;
+  font-weight: 600;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 0px;
+  border-bottom-right-radius: 0px;
+  z-index: 1010;
+  position: relative;
+  transform: scale(1.05);
+  margin-bottom: -5px;
+  padding-bottom: 5px;
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              font-weight 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .time-slider {
   position: relative;
   width: 100%;
@@ -1747,6 +1156,12 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   padding: 0;
   z-index: 1;
   /* outline: green solid 2px; */
+}
+
+.time-slider.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .time-slider::-webkit-slider-thumb {
@@ -1790,4 +1205,5 @@ watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.
   white-space: nowrap;
   /* outline: orange solid 2px; */
 }
+
 </style>
