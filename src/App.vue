@@ -46,4 +46,9 @@ body, html {
   width: 100%;
   height: 100%;
 }
+
+/* Hide Mapbox logo watermark */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
 </style>

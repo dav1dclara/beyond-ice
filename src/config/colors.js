@@ -28,10 +28,11 @@ export const COLORS = {
   },
   
   // Visualization colors (for percentage changes)
+  // Scale goes from blue (0% change, less concerning) to red (maximum negative change, most concerning)
   visualization: {
-    negative: '#1E3A8A',     // Dark blue for negative changes
-    negativeLight: '#3B82F6', // Light blue for -50%
-    neutral: '#E6F3FF',       // Very light blue for 0%
+    negative: '#EF4444',     // Red for maximum negative changes (-100%)
+    negativeLight: '#F472B6', // Pink/purple for -50%
+    neutral: '#60A5FA',       // Blue for 0% change
     missing: '#E5E5E5',      // Gray for missing data
   },
   
