@@ -8,7 +8,7 @@
         <button class="legend-dropdown-button">
           <span>{{ getVisualizationLabel(currentVisualization) }}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showVisualizationDropdown }">
-            <polyline points="6 15 12 9 18 15"></polyline>
+            <polyline points="9 6 15 12 9 18"></polyline>
           </svg>
         </button>
         <Transition name="dropdown">
@@ -25,21 +25,21 @@
               :class="{ active: currentVisualization === 'area-change' }"
               class="legend-dropdown-item"
             >
-              Change in Area (univariate)
+              Change in Area (since 2020)
             </button>
             <button
               @click.stop="handleVisualizationChange('volume-change')"
               :class="{ active: currentVisualization === 'volume-change' }"
               class="legend-dropdown-item"
             >
-              Change in Volume (univariate)
+              Change in Volume (since 2020)
             </button>
             <button
               @click.stop="handleVisualizationChange('bivariate')"
               :class="{ active: currentVisualization === 'bivariate' }"
               class="legend-dropdown-item"
             >
-              Change in Area & Volume (multivariate)
+              Change in Area & Volume (since 2020)
             </button>
           </div>
         </Transition>
@@ -47,31 +47,31 @@
       <!-- Area change legend -->
       <div v-if="currentVisualization === 'area-change'" class="legend-gradient-content">
         <div class="legend-gradient-bar-horizontal">
-          <div class="legend-labels-horizontal">
-            <span class="legend-label-left">0%</span>
-            <span class="legend-label-right">-100%</span>
-          </div>
           <div 
             class="legend-gradient-horizontal" 
             :style="{
               background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
             }"
           ></div>
+          <div class="legend-labels-horizontal">
+            <span class="legend-label-left">0%</span>
+            <span class="legend-label-right">-100%</span>
+          </div>
         </div>
       </div>
       <!-- Volume change legend -->
       <div v-if="currentVisualization === 'volume-change'" class="legend-gradient-content">
         <div class="legend-gradient-bar-horizontal">
-          <div class="legend-labels-horizontal">
-            <span class="legend-label-left">0%</span>
-            <span class="legend-label-right">-100%</span>
-          </div>
           <div 
             class="legend-gradient-horizontal" 
             :style="{
               background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
             }"
           ></div>
+          <div class="legend-labels-horizontal">
+            <span class="legend-label-left">0%</span>
+            <span class="legend-label-right">-100%</span>
+          </div>
         </div>
       </div>
       <!-- Bivariate legend -->
@@ -318,7 +318,15 @@ const getVisualizationLabel = (mode) => {
 
 // Function to draw continuous bivariate color field on canvas
 const drawBivariateLegend = () => {
-  if (!bivariateCanvas.value) return
+  if (!bivariateCanvas.value) {
+    // Canvas not ready yet, try again after a short delay
+    setTimeout(() => {
+      if (bivariateCanvas.value && props.currentVisualization === 'bivariate' && props.currentMode === 'default') {
+        drawBivariateLegend()
+      }
+    }, 100)
+    return
+  }
   
   const canvas = bivariateCanvas.value
   const ctx = canvas.getContext('2d')
@@ -391,9 +399,18 @@ const handleVisualizationChange = (mode) => {
   emit('visualization-change', mode)
   
   // Redraw bivariate legend if switching to bivariate mode
-  if (mode === 'bivariate') {
+  if (mode === 'bivariate' && props.currentMode === 'default') {
     nextTick(() => {
-      drawBivariateLegend()
+      if (bivariateCanvas.value) {
+        drawBivariateLegend()
+      } else {
+        // Canvas not ready, try again after a short delay
+        setTimeout(() => {
+          if (bivariateCanvas.value) {
+            drawBivariateLegend()
+          }
+        }, 100)
+      }
     })
   }
 }
@@ -419,9 +436,26 @@ onMounted(() => {
 
 // Watch for visualization changes to redraw legend
 watch(() => props.currentVisualization, (newVal) => {
-  if (newVal === 'bivariate') {
+  if (newVal === 'bivariate' && props.currentMode === 'default') {
     nextTick(() => {
-      drawBivariateLegend()
+      // Ensure canvas is available before drawing
+      if (bivariateCanvas.value) {
+        drawBivariateLegend()
+      }
+    })
+  }
+})
+
+// Watch for mode changes to redraw bivariate legend when switching to default mode
+watch(() => props.currentMode, (newMode) => {
+  if (newMode === 'default' && props.currentVisualization === 'bivariate') {
+    nextTick(() => {
+      // Use a small delay to ensure canvas is rendered
+      setTimeout(() => {
+        if (bivariateCanvas.value) {
+          drawBivariateLegend()
+        }
+      }, 50)
     })
   }
 })
@@ -787,7 +821,7 @@ onBeforeUnmount(() => {
 
 /* Gradient legend for area/volume change */
 .legend-gradient-content {
-  margin-top: 8px;
+  margin-top: 0px;
   width: 100%;
 }
 
