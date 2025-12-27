@@ -25,10 +25,10 @@ export const COLORS = {
 
   // Glacier colors
   glacier: {
-    default: '#A8DCF0',      // Sky blue - default glacier color
+    default: '#3B82F6',      // Blue - default glacier color (matches area change 0% color)
     selected: '#51B8E1',      // Dodger blue - selected/highlighted glacier
     currentYear: '#51B8E1',  // Steel blue - current year bars
-    outline: '#A8DCF0',       // Sky blue - glacier outlines
+    outline: '#3B82F6',       // Blue - glacier outlines (matches default)
   },
   
   // UI colors

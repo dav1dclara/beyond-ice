@@ -26,6 +26,13 @@
         :class="{ 'disabled': disabled }"
         :disabled="disabled"
       />
+      <div 
+        class="thumb-year-label"
+        :style="getThumbYearStyle()"
+        :class="{ 'disabled': disabled }"
+      >
+        {{ currentYear }}
+      </div>
       <div class="year-labels" :class="{ 'disabled': disabled }">
         <span
           v-for="year in yearLabels"
@@ -170,6 +177,29 @@ const getYearLabelStyle = (year) => {
     transform: 'translateX(-50%)'
   }
 }
+
+const getThumbYearStyle = () => {
+  const min = props.minYear
+  const max = props.maxYear
+  const percentage = ((props.currentYear - min) / (max - min)) * 100
+  
+  // The slider input has:
+  // - margin-left: 4px
+  // - width: calc(100% - 8px)
+  // - thumb width: 16px (so thumb radius = 8px)
+  // 
+  // The browser constrains the thumb at edges:
+  // - At 0%: thumb left edge = track start (4px), so thumb center = 4px + 8px = 12px
+  // - At 100%: thumb right edge = track end (100% - 4px), so thumb center = 100% - 4px - 8px = 100% - 12px
+  // - In between: thumb center interpolates linearly
+  //
+  // Formula: start + percentage * (end - start) / 100
+  // = 12px + percentage * ((100% - 12px) - 12px) / 100
+  // = 12px + percentage% - (percentage * 24px / 100)
+  return {
+    left: `calc(12px + ${percentage}% - ${percentage * 24 / 100}px)`
+  }
+}
 </script>
 
 <style scoped>
@@ -223,7 +253,7 @@ const getYearLabelStyle = (year) => {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  --thumb-width: 18px;
+  --thumb-width: 16px;
   --thumb-offset: calc(var(--thumb-width) / 2);
 }
 
@@ -250,23 +280,48 @@ const getYearLabelStyle = (year) => {
 .time-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  width: 16px;
+  height: 16px;
   background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); */
 }
 
 .time-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
   background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); */
+}
+
+.thumb-year-label {
+  position: absolute;
+  top: 3px;
+  transform: translate(-50%, -50%);
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.thumb-year-label.disabled {
+  opacity: 0.5;
 }
 
 .year-labels {

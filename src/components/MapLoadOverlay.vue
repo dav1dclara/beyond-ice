@@ -50,13 +50,13 @@ defineEmits(['load'])
   font-weight: 700;
   letter-spacing: 6px;
   margin: 0;
-  background: linear-gradient(135deg, #51B8E1 0%, #A8DCF0 50%, #51B8E1 100%);
+  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: shimmer 3s ease-in-out infinite;
-  filter: drop-shadow(0 2px 8px rgba(81, 184, 225, 0.3));
+  filter: drop-shadow(0 2px 8px rgba(59, 130, 246, 0.3));
   position: relative;
 }
 
@@ -82,7 +82,7 @@ defineEmits(['load'])
   font-size: 16px;
   font-weight: 600;
   color: #FFFFFF;
-  background: #A8DCF0;
+  background: #3B82F6;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -92,9 +92,9 @@ defineEmits(['load'])
 }
 
 .load-button:hover {
-  background: #51B8E1;
+  background: #2563EB;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 220, 240, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .load-button:active {

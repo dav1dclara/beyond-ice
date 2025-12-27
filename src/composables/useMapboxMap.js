@@ -29,7 +29,7 @@ export function useMapboxMap(mapboxCanvas) {
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
         style: 'mapbox://styles/mapbox/light-v11',
-        center: [8.3818, 46.3621], // Center of Switzerland
+        center: [8.5143, 46.3803], // Center of Switzerland
         zoom: 0, // Start at zoom level 0
         projection: 'globe', // Enable globe projection
         accessToken: MAPBOX_TOKEN,
@@ -72,7 +72,7 @@ export function useMapboxMap(mapboxCanvas) {
         
         // Fly in from zoom 0 to zoom 8 with a smooth animation
         map.value.flyTo({
-          center: [8.3818, 46.3621], // Center of Switzerland
+          center: [8.5143, 46.3803], // Center of Switzerland
           zoom: 8,
           duration: 3000, // 3 second animation
           essential: true // Animation is essential and won't be interrupted
