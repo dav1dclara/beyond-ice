@@ -44,9 +44,11 @@ def create_tileset_for_scenario(geojson_dir, scenario_name, data_dir):
         f"--description={scenario_name} glacier data with separate layer for each year",
         "--minimum-zoom=0",
         "--maximum-zoom=14",
-        # "--base-zoom=8",  # Optimize detail for zoom 8 (higher = more detail preserved)
-        # "--simplification=4",  # Balance between detail and tile size (lower = more detail, but larger tiles)
-        # "--drop-densest-as-needed",  # Drop features when needed to stay within tile size limits
+        "--low-detail=10",
+        "--full-detail=12",
+        "--simplification=1",
+        "--no-feature-limit",
+        "--extend-zooms-if-still-dropping",
         "--use-attribute-for-id=mapbox-id",  # Use 'mapbox-id' property as the feature ID
         "-aI",  # Convert string IDs to numbers if possible
         "--force"
@@ -177,23 +179,13 @@ def main():
                         if "Volume (km3)" in gdf_2020.columns:
                             volume_col = "Volume (km3)"
                         
-                        # Calculate Mean Thickness for 2020 baseline (same as in main processing)
-                        if volume_col and area_col:
-                            gdf_2020["Mean Thickness (m)"] = (gdf_2020[volume_col] / gdf_2020[area_col]) * 1000
-                        
                         # Store baseline values
                         for idx, row in gdf_2020.iterrows():
                             sgi_id = str(row[sgi_id_col]) if pd.notna(row[sgi_id_col]) else None
                             if sgi_id:
-                                # Calculate thickness if available
-                                thickness = None
-                                if "Mean Thickness (m)" in gdf_2020.columns and pd.notna(row["Mean Thickness (m)"]):
-                                    thickness = row["Mean Thickness (m)"]
-                                
                                 baseline_2020[sgi_id] = {
                                     'area': row[area_col] if area_col and pd.notna(row[area_col]) else None,
-                                    'volume': row[volume_col] if volume_col and pd.notna(row[volume_col]) else None,
-                                    'thickness': thickness
+                                    'volume': row[volume_col] if volume_col and pd.notna(row[volume_col]) else None
                                 }
                 except Exception as e:
                     print(f"    Warning: Could not read 2020 baseline file {shp_file.name}: {e}")
@@ -287,13 +279,6 @@ def main():
                     folder_total_areas += total
                     folder_matched_areas += matched
                 
-                # Calculate Mean Thickness (m) = (Volume / Area) * 1000
-                if "Volume (km3)" in gdf.columns and area_col:
-                    # Calculate Mean Thickness: (Volume / Area) * 1000
-                    # Volume is in km3, Area is in km2, so Volume/Area gives km
-                    # Multiply by 1000 to convert km to m
-                    gdf["Mean Thickness (m)"] = (gdf["Volume (km3)"] / gdf[area_col]) * 1000
-                
                 # Find the Glacier_ID column for mapping
                 glacier_id_col = None
                 if "Glacier_ID" in gdf.columns:
@@ -328,11 +313,10 @@ def main():
                 if glacier_id_col and glacier_id_col != "SGI-ID":
                     gdf = gdf.rename(columns={glacier_id_col: "SGI-ID"})
                 
-                # Calculate change in area, volume, and thickness compared to 2020
+                # Calculate change in area and volume compared to 2020
                 if "SGI-ID" in gdf.columns:
                     area_change = []
                     volume_change = []
-                    thickness_change = []
                     
                     for idx, row in gdf.iterrows():
                         sgi_id = str(row["SGI-ID"]) if pd.notna(row["SGI-ID"]) else None
@@ -341,7 +325,6 @@ def main():
                         if year == 2020:
                             area_change.append(0)
                             volume_change.append(0)
-                            thickness_change.append(0)
                         elif sgi_id and sgi_id in baseline_2020:
                             baseline = baseline_2020[sgi_id]
                             
@@ -365,23 +348,12 @@ def main():
                                 volume_change.append(round(((current_volume - baseline_volume) / baseline_volume) * 100))
                             else:
                                 volume_change.append(None)
-                            
-                            # Calculate thickness change as percentage (rounded to int)
-                            current_thickness = row["Mean Thickness (m)"] if "Mean Thickness (m)" in gdf.columns and pd.notna(row["Mean Thickness (m)"]) else None
-                            baseline_thickness = baseline['thickness']
-                            if current_thickness is not None and baseline_thickness is not None and baseline_thickness != 0:
-                                # Percentage change: ((current - baseline) / baseline) * 100, rounded to int
-                                thickness_change.append(round(((current_thickness - baseline_thickness) / baseline_thickness) * 100))
-                            else:
-                                thickness_change.append(None)
                         else:
                             area_change.append(None)
                             volume_change.append(None)
-                            thickness_change.append(None)
                     
                     gdf['Area change (%)'] = area_change
                     gdf['Volume change (%)'] = volume_change
-                    gdf['Thickness change (%)'] = thickness_change
                 else:
                     gdf['Area change (km2)'] = None
                     gdf['Volume change (km3)'] = None
@@ -392,6 +364,47 @@ def main():
                     gdf.set_crs(target_crs, inplace=True)
                 elif str(gdf.crs) != target_crs:
                     gdf = gdf.to_crs(target_crs)
+                
+                # Optimize dtypes to reduce tile size
+                # Convert float64 to float32 (reduces size by 50%)
+                if area_col and area_col in gdf.columns:
+                    gdf[area_col] = gdf[area_col].astype('float32')
+                if "Volume (km3)" in gdf.columns:
+                    gdf["Volume (km3)"] = gdf["Volume (km3)"].astype('float32')
+                
+                # Convert int64 to int16 for percentage changes (typically -100 to +1000 range)
+                if "Area change (%)" in gdf.columns:
+                    gdf["Area change (%)"] = gdf["Area change (%)"].astype('float32')  # Use float32 to handle None/NaN
+                if "Volume change (%)" in gdf.columns:
+                    gdf["Volume change (%)"] = gdf["Volume change (%)"].astype('float32')  # Use float32 to handle None/NaN
+                
+                # Convert mapbox-id to int32 if it's int64 (most IDs fit in int32)
+                if "mapbox-id" in gdf.columns and gdf["mapbox-id"].dtype == 'int64':
+                    # Check if values fit in int32 range
+                    if gdf["mapbox-id"].notna().any():
+                        max_id = gdf["mapbox-id"].max()
+                        min_id = gdf["mapbox-id"].min()
+                        if min_id >= -2147483648 and max_id <= 2147483647:
+                            gdf["mapbox-id"] = gdf["mapbox-id"].astype('int32')
+                
+                # Convert SGI-ID to int if it's numeric string
+                if "SGI-ID" in gdf.columns and gdf["SGI-ID"].dtype == 'object':
+                    # Try to convert to numeric if possible
+                    try:
+                        # Check if all non-null values are numeric
+                        numeric_sgi = pd.to_numeric(gdf["SGI-ID"], errors='coerce')
+                        if numeric_sgi.notna().sum() == gdf["SGI-ID"].notna().sum():
+                            # All values are numeric, convert to int32
+                            gdf["SGI-ID"] = numeric_sgi.astype('float32')  # Use float32 to handle NaN
+                    except:
+                        pass  # Keep as object if conversion fails
+                
+                # Print column names and dtypes after preprocessing (for first file)
+                if not first_file_processed:
+                    print(f"\n  Column names and dtypes after preprocessing (from {shp_file.name}):")
+                    for col in gdf.columns:
+                        print(f"    {col}: {gdf[col].dtype}")
+                    first_file_processed = True
                 
                 # Save to GeoJSON
                 output_filename = str(year) + ".geojson"
