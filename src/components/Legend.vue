@@ -25,27 +25,28 @@
               :class="{ active: currentVisualization === 'area-change' }"
               class="legend-dropdown-item"
             >
-              Change in Area
+              Area Change
             </button>
             <button
               @click.stop="handleVisualizationChange('volume-change')"
               :class="{ active: currentVisualization === 'volume-change' }"
               class="legend-dropdown-item"
             >
-              Change in Volume
+              Volume Change
             </button>
             <button
               @click.stop="handleVisualizationChange('bivariate')"
               :class="{ active: currentVisualization === 'bivariate' }"
               class="legend-dropdown-item"
             >
-              Change in Area & Volume
+              Area & Volume Change
             </button>
           </div>
         </Transition>
       </div>
       <!-- Area change legend -->
       <div v-if="currentVisualization === 'area-change'" class="legend-gradient-content">
+        <div class="legend-since-label">since 2020</div>
         <div class="legend-gradient-bar-horizontal">
           <div 
             class="legend-gradient-horizontal" 
@@ -61,6 +62,7 @@
       </div>
       <!-- Volume change legend -->
       <div v-if="currentVisualization === 'volume-change'" class="legend-gradient-content">
+        <div class="legend-since-label">since 2020</div>
         <div class="legend-gradient-bar-horizontal">
           <div 
             class="legend-gradient-horizontal" 
@@ -76,6 +78,7 @@
       </div>
       <!-- Bivariate legend -->
       <div v-if="currentVisualization === 'bivariate'" class="legend-bivariate" style="--canvas-size: 160px;">
+        <div class="legend-since-label">since 2020</div>
         <div style="display: flex; gap: 8px; align-items: flex-start;">
           <div>
             <div style="display: flex; align-items: center; gap: 4px;">
@@ -91,7 +94,7 @@
                   <span class="legend-label-bottom">-100%</span>
                 </div>
                 <div class="legend-bivariate-axis-label-vertical">
-                  <span class="legend-label">Change in Volume</span>
+                  <span class="legend-label">Volume Change</span>
                 </div>
               </div>
             </div>
@@ -101,7 +104,7 @@
                 <span class="legend-label-bottom">-100%</span>
               </div>
               <div class="legend-bivariate-axis-label">
-                <span class="legend-label">Change in Area</span>
+                <span class="legend-label">Area Change</span>
               </div>
             </div>
           </div>
@@ -310,9 +313,9 @@ const getModeLabel = (mode) => {
 const getVisualizationLabel = (mode) => {
   const labels = {
     'uniform': 'Uniform',
-    'area-change': 'Change in Area',
-    'volume-change': 'Change in Volume',
-    'bivariate': 'Change in Area & Volume'
+    'area-change': 'Area Change',
+    'volume-change': 'Volume Change',
+    'bivariate': 'Area & Volume Change'
   }
   return labels[mode] || 'Uniform'
 }
@@ -553,7 +556,6 @@ onBeforeUnmount(() => {
   top: 0;
   left: calc(100% + 4px);
   width: max-content;
-  min-width: 100%;
   white-space: nowrap;
   background: white;
   border: 1px solid #e5e5e5;
@@ -832,6 +834,15 @@ onBeforeUnmount(() => {
 .legend-gradient-content {
   margin-top: 0px;
   width: 100%;
+}
+
+.legend-since-label {
+  font-size: 11px;
+  color: #888888;
+  text-align: left;
+  margin-bottom: 6px;
+  font-weight: 400;
+  margin-left: 4px;
 }
 
 .legend-gradient-bar-horizontal {
