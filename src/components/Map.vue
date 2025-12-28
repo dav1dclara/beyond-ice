@@ -1064,12 +1064,64 @@ const handleZoomToExtent = () => {
 // Track which layer has handlers set up to avoid duplicate handlers
 const handlerLayerId = ref(null)
 const mapClickHandlerSetup = ref(false)
+const lastModeSwitchTime = ref(0)
+const selectionTime = ref(0)
 
 // Store handler function references so they can be properly removed
 let currentMousemoveHandler = null
 let currentMouseleaveHandler = null
 
 // handleGlacierClick and handleMapClick are now available from useFeatureSelection composable
+
+// Clean up handlers from overlay layers
+const cleanupOverlayHandlers = () => {
+  if (!map.value) return
+  
+  // Remove handlers from all possible overlay layers (not just the ones in handlerLayerId)
+  // This ensures we clean up even if handlerLayerId is not set correctly
+  decadeYears.forEach(year => {
+    const layerId = getStaticLayerId(projection.value, year)
+    try {
+      // Try to remove handlers with the stored handler references first
+      if (currentMousemoveHandler) {
+        map.value.off('mousemove', layerId, currentMousemoveHandler)
+      }
+      if (currentMouseleaveHandler) {
+        map.value.off('mouseleave', layerId, currentMouseleaveHandler)
+      }
+      // Always try to remove click handler (even without stored reference)
+      map.value.off('click', layerId, handleGlacierClick)
+    } catch (error) {
+      // Ignore errors when removing handlers (layer might not exist or have handlers)
+    }
+  })
+  
+  // Also clean up based on handlerLayerId if it exists
+  if (handlerLayerId.value && handlerLayerId.value.startsWith('overlay-')) {
+    const oldKey = handlerLayerId.value.replace('overlay-', '')
+    const oldLayerIds = oldKey.split('-').filter(id => id)
+    
+    oldLayerIds.forEach(oldLayerId => {
+      try {
+        if (currentMousemoveHandler) {
+          map.value.off('mousemove', oldLayerId, currentMousemoveHandler)
+        }
+        if (currentMouseleaveHandler) {
+          map.value.off('mouseleave', oldLayerId, currentMouseleaveHandler)
+        }
+        map.value.off('click', oldLayerId, handleGlacierClick)
+      } catch (error) {
+        // Ignore errors
+      }
+    })
+  }
+  
+  // Clear handler references
+  currentMousemoveHandler = null
+  currentMouseleaveHandler = null
+  handlerLayerId.value = null
+  console.log('[MapNew] Cleaned up overlay handlers')
+}
 
 // Setup click handler for feature selection
 const setupClickHandler = async () => {
@@ -1789,7 +1841,9 @@ const {
   selectedFeatureId,
   calculateTerrainCameraAngle,
   updateAllLayerColors,
-  querySourceFeatures
+  querySourceFeatures,
+  lastModeSwitchTime,
+  selectionTime
 )
 
 // Don't auto-initialize - wait for user to click "Load map"
@@ -1807,16 +1861,61 @@ watch(selectedFeatureId, () => {
 watch(mapMode, (newMode, oldMode) => {
   if (!mapLoaded.value || !map.value) return
   
+  // IMPORTANT: Clear selection FIRST when switching FROM overlay mode
+  // This must happen before any handlers are set up to prevent deselection issues
+  if (oldMode === 'overlay' && newMode !== 'overlay') {
+    selectedGlacier.value = null
+    selectedFeatureId.value = null
+    searchQuery.value = ''
+    selectionTime.value = 0
+    lastModeSwitchTime.value = Date.now()
+    console.log('[MapNew] Cleared selection when switching from overlay to', newMode)
+  }
+  
+  // Clear selection when switching between any modes
+  if (oldMode && oldMode !== newMode && oldMode !== 'overlay') {
+    selectedGlacier.value = null
+    selectedFeatureId.value = null
+    searchQuery.value = ''
+    selectionTime.value = 0
+    lastModeSwitchTime.value = Date.now()
+    console.log('[MapNew] Cleared selection when switching from', oldMode, 'to', newMode)
+  }
+  
   if (newMode === 'overlay') {
     // When entering overlay mode, show all years by default
     visibleYears.value = new Set(decadeYears)
   } else if (oldMode === 'overlay') {
-    // When switching away from overlay mode, clean up ALL overlay layers first
+    // When switching away from overlay mode, clean up handlers first, then layers
+    cleanupOverlayHandlers()
     cleanupAllStaticLayers()
   }
   
   // Clean up comparison layers when switching away from comparison mode
   if (oldMode === 'comparison') {
+    // Clean up comparison handlers first
+    if (handlerLayerId.value && handlerLayerId.value.includes('comparison')) {
+      const refLayerId = getComparisonLayerId(referenceScenario.value)
+      const compLayerId = getComparisonLayerId(comparisonScenario.value)
+      try {
+        if (currentMousemoveHandler) {
+          map.value.off('mousemove', refLayerId, currentMousemoveHandler)
+          map.value.off('mousemove', compLayerId, currentMousemoveHandler)
+        }
+        if (currentMouseleaveHandler) {
+          map.value.off('mouseleave', refLayerId, currentMouseleaveHandler)
+          map.value.off('mouseleave', compLayerId, currentMouseleaveHandler)
+        }
+        map.value.off('click', refLayerId, handleGlacierClick)
+        map.value.off('click', compLayerId, handleGlacierClick)
+        currentMousemoveHandler = null
+        currentMouseleaveHandler = null
+        handlerLayerId.value = null
+      } catch (error) {
+        console.log('[MapNew] Error removing comparison handlers:', error)
+      }
+    }
+    
     const allProjections = Object.keys(TILESET_IDS).filter(p => TILESET_IDS[p] !== null)
     allProjections.forEach(p => {
       const compLayerId = getComparisonLayerId(p)
@@ -1830,9 +1929,14 @@ watch(mapMode, (newMode, oldMode) => {
   createLayersForProjectionYear(projection.value, currentYear.value)
   updateAllLayerColors()
   
+  // Reset handler layer ID when switching modes to ensure clean setup
+  handlerLayerId.value = null
+  
   if (newMode === 'dynamic') {
-    // When switching to dynamic mode, setup click handler
-    setupClickHandler()
+    // When switching to dynamic mode, setup click handler after a delay to ensure layers are created
+    setTimeout(async () => {
+      await setupClickHandler()
+    }, 150)
   } else if (newMode === 'overlay') {
     // When switching to overlay mode, setup click handler
     setTimeout(async () => {
