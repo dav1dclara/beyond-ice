@@ -25,21 +25,21 @@
               :class="{ active: currentVisualization === 'area-change' }"
               class="legend-dropdown-item"
             >
-              Change in Area (since 2020)
+              Change in Area
             </button>
             <button
               @click.stop="handleVisualizationChange('volume-change')"
               :class="{ active: currentVisualization === 'volume-change' }"
               class="legend-dropdown-item"
             >
-              Change in Volume (since 2020)
+              Change in Volume
             </button>
             <button
               @click.stop="handleVisualizationChange('bivariate')"
               :class="{ active: currentVisualization === 'bivariate' }"
               class="legend-dropdown-item"
             >
-              Change in Area & Volume (since 2020)
+              Change in Area & Volume
             </button>
           </div>
         </Transition>
@@ -91,17 +91,17 @@
                   <span class="legend-label-bottom">-100%</span>
                 </div>
                 <div class="legend-bivariate-axis-label-vertical">
-                  <span class="legend-label">Area change since 2020</span>
+                  <span class="legend-label">Change in Volume</span>
                 </div>
               </div>
             </div>
             <div class="legend-bivariate-axis-container-horizontal">
-              <div class="legend-bivariate-axis" style="margin-top: 4px;">
+              <div class="legend-bivariate-axis">
                 <span class="legend-label-top">0%</span>
                 <span class="legend-label-bottom">-100%</span>
               </div>
-              <div class="legend-bivariate-axis-label" style="margin-top: 4px; text-align: center;">
-                <span class="legend-label">Volume change since 2020</span>
+              <div class="legend-bivariate-axis-label">
+                <span class="legend-label">Change in Area</span>
               </div>
             </div>
           </div>
@@ -205,6 +205,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { PROJECTION_CONFIG } from '../config/projections.js'
+import { getBivariateColor } from '../utils/bivariateColor.js'
 
 const props = defineProps({
   currentMode: {
@@ -317,6 +318,8 @@ const getVisualizationLabel = (mode) => {
 }
 
 // Function to draw continuous bivariate color field on canvas
+let isDrawing = false // Prevent concurrent draws
+
 const drawBivariateLegend = () => {
   if (!bivariateCanvas.value) {
     // Canvas not ready yet, try again after a short delay
@@ -328,63 +331,62 @@ const drawBivariateLegend = () => {
     return
   }
   
-  const canvas = bivariateCanvas.value
-  const ctx = canvas.getContext('2d')
-  const width = canvas.width
-  const height = canvas.height
+  // Prevent concurrent draws
+  if (isDrawing) return
+  isDrawing = true
   
-  // Corner colors as RGB
-  const lowLow = { r: 232, g: 244, b: 248 }   // #E8F4F8
-  const highLow = { r: 231, g: 76, b: 60 }   // #E74C3C
-  const lowHigh = { r: 52, g: 152, b: 219 }  // #3498DB
-  const highHigh = { r: 44, g: 62, b: 80 }   // #2C3E50
-  
-  // Bilinear interpolation function
-  const interpolateColor = (x, y) => {
-    // x and y are normalized 0-1 (x = area, y = volume)
-    const r = Math.round(
-      (1 - x) * (1 - y) * lowLow.r +
-      x * (1 - y) * highLow.r +
-      (1 - x) * y * lowHigh.r +
-      x * y * highHigh.r
-    )
-    const g = Math.round(
-      (1 - x) * (1 - y) * lowLow.g +
-      x * (1 - y) * highLow.g +
-      (1 - x) * y * lowHigh.g +
-      x * y * highHigh.g
-    )
-    const b = Math.round(
-      (1 - x) * (1 - y) * lowLow.b +
-      x * (1 - y) * highLow.b +
-      (1 - x) * y * lowHigh.b +
-      x * y * highHigh.b
-    )
-    return `rgb(${r}, ${g}, ${b})`
-  }
-  
-  // Draw each pixel with interpolated color
-  const imageData = ctx.createImageData(width, height)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const normalizedX = x / width  // 0 to 1 (area change: left = low, right = high)
-      const normalizedY = y / height // 0 to 1 (volume change: top = low, bottom = high)
-      
-      const color = interpolateColor(normalizedX, normalizedY)
-      const rgb = color.match(/\d+/g)
-      const r = parseInt(rgb[0])
-      const g = parseInt(rgb[1])
-      const b = parseInt(rgb[2])
-      
-      const index = (y * width + x) * 4
-      imageData.data[index] = r
-      imageData.data[index + 1] = g
-      imageData.data[index + 2] = b
-      imageData.data[index + 3] = 255
+  try {
+    const canvas = bivariateCanvas.value
+    const width = canvas.width
+    const height = canvas.height
+    
+    // Get fresh 2D context to ensure clean state
+    const ctx = canvas.getContext('2d', { willReadFrequently: false })
+    
+    // Disable image smoothing to prevent interpolation artifacts
+    ctx.imageSmoothingEnabled = false
+    
+    // Completely clear the canvas - fill with white then clear
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(0, 0, width, height)
+    ctx.clearRect(0, 0, width, height)
+    
+    // Create fresh ImageData
+    const imageData = ctx.createImageData(width, height)
+    const data = imageData.data
+    
+    // Draw each pixel using the bivariate color function
+    // X-axis: area change (left = 0%, right = -100%)
+    // Y-axis: volume change (top = 0%, bottom = -100%)
+    // Canvas coordinates: y=0 is top, y=height-1 is bottom
+    // Skip first two rows (y=0, y=1) and first two columns (x=0, x=1) to avoid artifact lines
+    for (let y = 2; y < height; y++) {
+      for (let x = 2; x < width; x++) {
+        // Convert pixel coordinates to percentage values
+        // Skip first two rows and columns to avoid edge artifacts
+        const areaChange = -((x + 0.5) / width) * 100
+        const volumeChange = -((y + 0.5) / height) * 100
+        
+        // Use the same color function as the map
+        const rgb = getBivariateColor(areaChange, volumeChange)
+        
+        // Set pixel data
+        const index = (y * width + x) * 4
+        data[index] = rgb.r     // Red
+        data[index + 1] = rgb.g // Green
+        data[index + 2] = rgb.b // Blue
+        data[index + 3] = 255    // Alpha (fully opaque)
+      }
     }
+    
+    // Leave first two rows (y=0, y=1) and first two columns (x=0, x=1) as cleared/transparent
+    // They will show as white/background color
+    
+    // Put the complete image data onto the canvas in one operation
+    ctx.putImageData(imageData, 0, 0)
+  } finally {
+    isDrawing = false
   }
-  
-  ctx.putImageData(imageData, 0, 0)
 }
 
 // Handle visualization change
@@ -762,6 +764,8 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
+  padding: 0;
+  margin: 0;
 }
 
 .legend-bivariate-axis-container-horizontal {
@@ -769,12 +773,15 @@ onBeforeUnmount(() => {
   flex-direction: column;
   width: var(--canvas-size, 160px);
   box-sizing: border-box;
+  margin-top: 4px;
 }
 
 .legend-bivariate-axis {
   display: flex;
   justify-content: space-between;
   width: 100%;
+  padding: 0;
+  margin: 0;
 }
 
 .legend-bivariate-axis-label {
@@ -783,6 +790,7 @@ onBeforeUnmount(() => {
   font-weight: 500;
   text-align: center;
   width: 100%;
+  margin-top: 4px;
 }
 
 .legend-bivariate-axis-container-vertical {
@@ -811,6 +819,7 @@ onBeforeUnmount(() => {
   font-weight: 500;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  margin-left: 4px;
 }
 
 .legend-label-top,
