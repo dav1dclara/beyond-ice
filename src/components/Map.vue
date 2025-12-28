@@ -988,7 +988,7 @@ const handleZoomToExtent = () => {
   try {
     // Zoom to center of Switzerland with zoom level 8
     map.value.flyTo({
-      center: [8.3818, 46.3621], // Center of Switzerland
+      center: [8.5143, 46.3803], // Center of Switzerland
       zoom: 8,
       duration: 1000
     })
@@ -1465,33 +1465,122 @@ const getFillColor = () => {
       0, COLORS.visualization.neutral
     ]
   } else if (visualization.value === 'bivariate') {
+    // Piecewise angular bivariate choropleth
+    // Angle controls hue via piecewise interpolation, radius controls lightness
+    
+    const areaChange = ['get', 'Area change (%)']
+    const volumeChange = ['get', 'Volume change (%)']
+    
+    // STEP 1: Normalize inputs
+    const areaRel = ['/', areaChange, 100]  // [-1, 0]
+    const volumeRel = ['/', volumeChange, 100]  // [-1, 0]
+    
+    // STEP 2: Compute coordinates
+    // x = -volume_change, y = -area_change
+    const x = ['*', volumeRel, -1]  // x ∈ [0, 1]
+    const y = ['*', areaRel, -1]    // y ∈ [0, 1]
+    
+    // STEP 3: Compute angle from downward axis
+    // θ = atan2(x, y) in radians, then convert to degrees
+    // Mapbox doesn't support atan2, so approximate for first quadrant (x >= 0, y >= 0)
+    // Simple approximation: θ ≈ (x / (x + y)) * (π/2) for first quadrant
+    const pi = 3.141592653589793
+    const piOver2 = 1.5707963267948966 // π/2
+    
+    // Handle edge cases: y = 0 → 90°, x = 0 → 0°
+    const isYZero = ['==', y, 0]
+    const isXZero = ['==', x, 0]
+    
+    // For non-edge cases: approximate atan2(x, y) using ratio
+    const ratio = ['/', x, ['+', x, y]]
+    const thetaRadApprox = ['*', ratio, piOver2]
+    
+    // Use case to handle edge cases
+    const thetaRad = [
+      'case',
+      isYZero, piOver2,  // y = 0 → 90° (π/2)
+      isXZero, 0,        // x = 0 → 0°
+      thetaRadApprox     // Otherwise use approximation
+    ]
+    
+    const thetaDeg = ['*', ['/', thetaRad, pi], 180] // ∈ [0, 90]
+    
+    // STEP 4: Define angular anchor colors
+    // 0° → C0 (orange), 30° → C1 (yellow-orange), 60° → C2 (cyan), 90° → C3 (blue)
+    const C0R = 255, C0G = 165, C0B = 0   // Orange
+    const C1R = 255, C1G = 220, C1B = 100 // Yellow-orange
+    const C2R = 100, C2G = 200, C2B = 255 // Cyan/light blue
+    const C3R = 0, C3G = 100, C3B = 255  // Blue
+    
+    // STEP 5: Piecewise angular interpolation
+    // Narrower central section (35-55°) to make diagonal transition thinner
+    // 0-35°: lerp(C0, C1)
+    // 35-55°: lerp(C1, C2)
+    // 55-90°: lerp(C2, C3)
+    const t0_35 = ['/', thetaDeg, 35] // ∈ [0, 1] for 0-35°
+    const t35_55 = ['/', ['-', thetaDeg, 35], 20] // ∈ [0, 1] for 35-55°
+    const t55_90 = ['/', ['-', thetaDeg, 55], 35] // ∈ [0, 1] for 55-90°
+    
+    const baseR = [
+      'case',
+      ['<=', thetaDeg, 35],
+      ['+', C0R, ['*', ['-', C1R, C0R], t0_35]],
+      ['<=', thetaDeg, 55],
+      ['+', C1R, ['*', ['-', C2R, C1R], t35_55]],
+      ['+', C2R, ['*', ['-', C3R, C2R], t55_90]]
+    ]
+    const baseG = [
+      'case',
+      ['<=', thetaDeg, 35],
+      ['+', C0G, ['*', ['-', C1G, C0G], t0_35]],
+      ['<=', thetaDeg, 55],
+      ['+', C1G, ['*', ['-', C2G, C1G], t35_55]],
+      ['+', C2G, ['*', ['-', C3G, C2G], t55_90]]
+    ]
+    const baseB = [
+      'case',
+      ['<=', thetaDeg, 35],
+      ['+', C0B, ['*', ['-', C1B, C0B], t0_35]],
+      ['<=', thetaDeg, 55],
+      ['+', C1B, ['*', ['-', C2B, C1B], t35_55]],
+      ['+', C2B, ['*', ['-', C3B, C2B], t55_90]]
+    ]
+    
+    // STEP 6: Compute radius and lightness
+    // r = sqrt(x² + y²) / sqrt(2) ∈ [0, 1]
+    const radius = ['sqrt', ['+', ['*', x, x], ['*', y, y]]]
+    const sqrt2 = 1.4142135623730951
+    const rNormalized = ['min', ['/', radius, sqrt2], 1]
+    
+    // Smooth compression: m = 1 - exp(-r / r0)
+    // Approximate exp(-x) ≈ 1 / (1 + x + x²/2) for x = r/r0 (simplified)
+    const r0 = 0.4
+    const rOverR0 = ['/', rNormalized, r0]
+    const rOverR0Squared = ['*', rOverR0, rOverR0]
+    // exp(-r/r0) ≈ 1 / (1 + r/r0 + 0.5*(r/r0)²)
+    const denominator = ['+', 1, ['+', rOverR0, ['*', 0.5, rOverR0Squared]]]
+    const expNeg = ['/', 1, denominator]
+    const m = ['-', 1, expNeg] // m = 1 - exp(-r/r0) ∈ [0, 1)
+    
+    // Apply lightness (inverted: r=0 → dark, r=1 → light)
+    // Interpolate from dark (black) to base_color using m
+    const darkR = 0, darkG = 0, darkB = 0
+    const finalR = ['+', darkR, ['*', ['-', baseR, darkR], m]]
+    const finalG = ['+', darkG, ['*', ['-', baseG, darkG], m]]
+    const finalB = ['+', darkB, ['*', ['-', baseB, darkB], m]]
+    
+    // STEP 7: Clamp and round final RGB values
+    const r = ['round', ['max', 0, ['min', 255, finalR]]]
+    const g = ['round', ['max', 0, ['min', 255, finalG]]]
+    const b = ['round', ['max', 0, ['min', 255, finalB]]]
+    
+    // Clamp RGB values
+    const clamp = (value) => ['max', 0, ['min', 255, value]]
+    
     return [
       'case',
       ['all', ['has', 'Area change (%)'], ['has', 'Volume change (%)']],
-      [
-        'rgb',
-        [
-          '+',
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 232],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 231],
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 52],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 44]
-        ],
-        [
-          '+',
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 244],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 76],
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 152],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 62]
-        ],
-        [
-          '+',
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 248],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['-', 1, ['/', ['abs', ['get', 'Volume change (%)']], 100]]], 60],
-          ['*', ['*', ['-', 1, ['/', ['abs', ['get', 'Area change (%)']], 100]], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 219],
-          ['*', ['*', ['/', ['abs', ['get', 'Area change (%)']], 100], ['/', ['abs', ['get', 'Volume change (%)']], 100]], 80]
-        ]
-      ],
+      ['rgb', clamp(r), clamp(g), clamp(b)],
       COLORS.visualization.missing
     ]
   } else {
