@@ -26,7 +26,7 @@
 
     
     <!-- Tooltip for glacier properties -->
-    <GlacierTooltip :tooltip="tooltip" />
+    <GlacierTooltip ref="tooltipElement" :tooltip="tooltip" />
     
     <!-- Map controls in top-right corner -->
     <MapControls
@@ -116,6 +116,7 @@ import ImprintModal from './ImprintModal.vue'
 
 // Template ref for map container
 const mapboxCanvas = ref(null)
+const tooltipElement = ref(null)
 
 // Initialize map using composable
 const { map, mapLoaded, initializeMap } = useMapboxMap(mapboxCanvas)
@@ -287,6 +288,67 @@ const tooltip = ref({
 let tooltipTimer = null
 const TOOLTIP_DELAY = 500 // milliseconds
 
+// Calculate tooltip position with boundary checking
+const calculateTooltipPosition = (pointX, pointY) => {
+  if (!mapboxCanvas.value || !map.value) {
+    return { x: pointX + 10, y: pointY - 10 }
+  }
+  
+  const canvas = mapboxCanvas.value
+  const canvasWidth = canvas.offsetWidth
+  const canvasHeight = canvas.offsetHeight
+  
+  // Get actual tooltip dimensions if available, otherwise use estimates
+  let tooltipWidth = 200
+  let tooltipHeight = 100
+  
+  if (tooltipElement.value?.$el) {
+    const tooltipEl = tooltipElement.value.$el
+    if (tooltipEl.offsetWidth > 0 && tooltipEl.offsetHeight > 0) {
+      tooltipWidth = tooltipEl.offsetWidth
+      tooltipHeight = tooltipEl.offsetHeight
+    }
+  }
+  
+  // Default: place tooltip to the right and below cursor (attached, no gap)
+  let x = pointX
+  let y = pointY
+  
+  // Check if tooltip would overflow on the right - flip to left if needed
+  const wouldOverflowRight = x + tooltipWidth > canvasWidth
+  if (wouldOverflowRight) {
+    // Place tooltip to the left of cursor, attached (no gap)
+    x = pointX - tooltipWidth
+  } else {
+    // If cursor is on the very left and we're placing to the right, add offset to avoid weird gap
+    if (pointX < 50) {
+      x = pointX + 50
+    }
+  }
+  
+  // Check if tooltip would overflow on the bottom - flip above if needed
+  if (y + tooltipHeight > canvasHeight) {
+    // Place tooltip above cursor, attached (no gap)
+    y = pointY - tooltipHeight
+  }
+  
+  // Final boundary checks to ensure tooltip stays within canvas
+  if (x < 0) {
+    x = 0
+  }
+  if (x + tooltipWidth > canvasWidth) {
+    x = canvasWidth - tooltipWidth
+  }
+  if (y < 0) {
+    y = 0
+  }
+  if (y + tooltipHeight > canvasHeight) {
+    y = canvasHeight - tooltipHeight
+  }
+  
+  return { x, y }
+}
+
 // Handle visualization change
 const handleVisualizationChange = (mode) => {
   visualization.value = mode
@@ -355,7 +417,7 @@ const toggleBasemap = (satellite) => {
   
   const newStyle = isSatellite.value
     ? swissImage
-    : 'mapbox://styles/mapbox/light-v11'
+    : 'mapbox://styles/davidclara/cmjqbpgl6009001qy10ju7edu'
   
   // Reset loaded sources since style change removes all sources
   loadedSources.value.clear()
@@ -1203,13 +1265,22 @@ const setupClickHandler = async () => {
           const pointY = e.point.y
           
           tooltipTimer = setTimeout(() => {
+            const position = calculateTooltipPosition(pointX, pointY)
             tooltip.value = {
               visible: true,
               feature: feature,
-              x: pointX + 10,
-              y: pointY - 10
+              x: position.x,
+              y: position.y
             }
             tooltipTimer = null
+            // Recalculate position with actual tooltip dimensions after rendering
+            nextTick(() => {
+              if (tooltip.value.visible) {
+                const actualPosition = calculateTooltipPosition(pointX, pointY)
+                tooltip.value.x = actualPosition.x
+                tooltip.value.y = actualPosition.y
+              }
+            })
           }, TOOLTIP_DELAY)
         } else {
           tooltip.value.visible = false
@@ -1351,13 +1422,22 @@ const setupClickHandler = async () => {
         
         // Set timer to show tooltip after delay
         tooltipTimer = setTimeout(() => {
+          const position = calculateTooltipPosition(pointX, pointY)
           tooltip.value = {
             visible: true,
             feature: feature,
-            x: pointX + 10,
-            y: pointY - 10
+            x: position.x,
+            y: position.y
           }
           tooltipTimer = null
+          // Recalculate position with actual tooltip dimensions after rendering
+          nextTick(() => {
+            if (tooltip.value.visible) {
+              const actualPosition = calculateTooltipPosition(pointX, pointY)
+              tooltip.value.x = actualPosition.x
+              tooltip.value.y = actualPosition.y
+            }
+          })
         }, TOOLTIP_DELAY)
       } else {
         // Hide tooltip immediately if no feature

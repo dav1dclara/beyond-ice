@@ -28,7 +28,7 @@ export function useMapboxMap(mapboxCanvas) {
       // Initialize Mapbox map starting at zoom level 0
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
-        style: 'mapbox://styles/mapbox/light-v11',
+        style: 'mapbox://styles/davidclara/cmjqbpgl6009001qy10ju7edu',
         center: [8.5143, 46.3803], // Center of Switzerland
         zoom: 0, // Start at zoom level 0
         projection: 'globe', // Enable globe projection
