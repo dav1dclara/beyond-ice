@@ -23,6 +23,8 @@ import { COLORS } from '../config/colors.js'
  * @param {Function} calculateTerrainCameraAngle - Function to calculate camera angle from terrain
  * @param {Function} updateLayerColors - Function to update layer colors
  * @param {Function} querySourceFeatures - Function to query features from source
+ * @param {Ref<number>} lastModeSwitchTime - Timestamp of last mode switch
+ * @param {Ref<number>} selectionTime - Ref to track when selection was made
  * @returns {Object} Selection functions
  */
 export function useFeatureSelection(
@@ -43,7 +45,9 @@ export function useFeatureSelection(
   selectedFeatureId,
   calculateTerrainCameraAngle,
   updateLayerColors,
-  querySourceFeatures
+  querySourceFeatures,
+  lastModeSwitchTime,
+  selectionTime
 ) {
 
   /**
@@ -282,10 +286,19 @@ export function useFeatureSelection(
     // In comparison mode or overlay mode, don't allow deselection by clicking the same feature
     // (since overlapping layers can make it confusing)
     // Only allow deselection by clicking outside
-    if (isSameFeature && mapMode.value !== 'comparison' && mapMode.value !== 'overlay') {
+    // In dynamic mode, NEVER allow deselection by clicking the same feature
+    // Only allow deselection by clicking outside the map
+    // In comparison mode or overlay mode, also don't allow deselection by clicking the same feature
+    // (since overlapping layers can make it confusing)
+    const shouldDeselect = false // Never deselect by clicking the same feature
+    
+    if (shouldDeselect) {
       console.log('[useFeatureSelection] Deselecting feature (clicked same feature again)')
       selectedGlacier.value = null
       selectedFeatureId.value = null
+      if (selectionTime) {
+        selectionTime.value = 0
+      }
       searchQuery.value = ''
     } else {
       console.log('[useFeatureSelection] Selecting feature, setting ID:', normalizedFeatureId, isSameFeature ? '(same feature, but keeping selected in comparison mode)' : '(new feature)')
@@ -296,6 +309,10 @@ export function useFeatureSelection(
       }
       // Lock the feature ID so it persists across year/scenario changes
       selectedFeatureId.value = normalizedFeatureId
+      // Track when this selection was made
+      if (selectionTime) {
+        selectionTime.value = Date.now()
+      }
       // Update search bar
       searchQuery.value = selectedFeature.properties?.name || ''
     }
