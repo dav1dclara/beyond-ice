@@ -342,7 +342,7 @@ const loadOverallDataFromCSV = async (projection) => {
   }
   
   try {
-    const csvUrl = `${import.meta.env.BASE_URL}data/${folder}_overall_totals.csv`
+    const csvUrl = `${import.meta.env.BASE_URL}data/${folder}_totals.csv`
     const response = await fetch(csvUrl)
     
     if (!response.ok) {
@@ -903,7 +903,7 @@ watch(() => selectedMetric.value, async () => {
 .graph-container {
   position: relative;
   width: flex;
-  height: 180px;
+  height: 150px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
