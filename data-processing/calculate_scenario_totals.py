@@ -82,7 +82,7 @@ def main():
     script_dir = Path(__file__).parent
     data_dir = script_dir / ".." / "data"
     data_dir = data_dir.resolve()
-    
+
     future_extents_dir = data_dir / "raw" / "future_extents"
 
     if not future_extents_dir.exists():
