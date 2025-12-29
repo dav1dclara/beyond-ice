@@ -19,7 +19,7 @@ export function useGlacierSearch() {
   const loadGlacierSearchIndex = async () => {
     try {
       // Use BASE_URL like the overall CSV files do (works in both dev and production)
-      const csvUrl = `${import.meta.env.BASE_URL}data/mapping.csv`
+      const csvUrl = `${import.meta.env.BASE_URL}data/glacier_index.csv`
       console.log('[useGlacierSearch] Loading glacier search index from', csvUrl)
       const response = await fetch(csvUrl)
       
@@ -29,7 +29,7 @@ export function useGlacierSearch() {
         return
       }
       
-      console.log('[useGlacierSearch] Successfully loaded mapping.csv')
+      console.log('[useGlacierSearch] Successfully loaded glacier_index.csv')
       const text = await response.text()
       const lines = text.split('\n').filter(line => line.trim())
       

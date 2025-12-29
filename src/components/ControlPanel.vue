@@ -19,22 +19,23 @@
       <span>{{ showGraph ? 'Hide evolution graph' : 'Show evolution graph' }}</span>
       <span class="graph-toggle-icon">{{ showGraph ? '▼' : '▲' }}</span>
     </button>
-    <EvolutionGraph
-      v-if="showGraph"
-      :selected-projection="selectedProjection"
-      :selected-glacier="selectedGlacier"
-      :current-year="currentYear"
-      :min-year="minYear"
-      :max-year="maxYear"
-      :step="step"
-      :map="map"
-      :get-source-id="getSourceId"
-      :map-loaded="mapLoaded"
-      :current-mode="currentMode"
-      :reference-scenario="referenceScenario"
-      :comparison-scenario="comparisonScenario"
-      @year-change="handleYearChange"
-    />
+    <div v-if="showGraph" class="evolution-graph-wrapper">
+      <EvolutionGraph
+        :selected-projection="selectedProjection"
+        :selected-glacier="selectedGlacier"
+        :current-year="currentYear"
+        :min-year="minYear"
+        :max-year="maxYear"
+        :step="step"
+        :map="map"
+        :get-source-id="getSourceId"
+        :map-loaded="mapLoaded"
+        :current-mode="currentMode"
+        :reference-scenario="referenceScenario"
+        :comparison-scenario="comparisonScenario"
+        @year-change="handleYearChange"
+      />
+    </div>
     <TimeSlider
       :current-year="currentYear"
       :min-year="minYear"
@@ -234,6 +235,10 @@ const handleComparisonScenarioChange = (scenario) => {
 .graph-toggle-button.disabled span,
 .graph-toggle-button.disabled .graph-toggle-icon {
   opacity: 0.5;
+}
+
+.evolution-graph-wrapper {
+  margin-bottom: 4px;
 }
 
 .graph-toggle-icon {
