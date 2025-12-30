@@ -1,4 +1,7 @@
-// Aerial imagery style using Swisstopo SWISSIMAGE
+// Light basemap style
+export const lightStyle = 'mapbox://styles/davidclara/cmjqbpgl6009001qy10ju7edu'
+
+// Aerial imagery style
 export const swissImage = {
   version: 8,
   name: 'SWISSIMAGE',
