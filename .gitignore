@@ -12,15 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
-.env
-
-# Data files
-/data/
-
-# Test/experimental files
-experiments/
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -32,6 +23,8 @@ experiments/
 *.sln
 *.sw?
 
-test.html
+# Environment variables
+.env
 
-tileset_output/
+# Data files
+/data/
