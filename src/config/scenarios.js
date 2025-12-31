@@ -1,0 +1,13 @@
+/**
+ * Configuration for scenario and year settings
+ */
+export const SCENARIO_CONFIG = {
+  MIN_YEAR: 2020,
+  MAX_YEAR: 2100,
+  YEAR_STEP: 2,
+  DEFAULT_YEAR: 2020,
+  DEFAULT_SCENARIO: 'SSP2-4.5',
+  DEFAULT_REFERENCE_SCENARIO: 'SSP2-4.5',
+  DEFAULT_COMPARISON_SCENARIO: 'SSP5-8.5',
+};
+
