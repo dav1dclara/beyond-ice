@@ -6,12 +6,16 @@
   >
     <div class="tooltip-content">
       <div v-if="featureProps?.name" class="tooltip-title">
-        {{ featureProps.name }}<span v-if="displayYear"> ({{ displayYear }})</span>
+        {{ featureProps.name }}
       </div>
       <div class="tooltip-properties">
         <div v-if="featureProps?.['sgi-id']" class="tooltip-row">
           <span class="tooltip-label">SGI ID:</span>
           <span class="tooltip-value">{{ featureProps['sgi-id'] }}</span>
+        </div>
+        <div v-if="displayYear != null" class="tooltip-row">
+          <span class="tooltip-label">Year:</span>
+          <span class="tooltip-value">{{ displayYear }}</span>
         </div>
         <div v-if="getAreaValue != null" class="tooltip-row">
           <span class="tooltip-label">Area:</span>
