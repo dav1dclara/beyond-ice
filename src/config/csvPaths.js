@@ -32,4 +32,3 @@ export const CSV_PATHS = {
     return `${import.meta.env.BASE_URL}${CSV_PATHS.DATA_DIR}/${CSV_PATHS.GLACIER_INDEX}`;
   },
 };
-

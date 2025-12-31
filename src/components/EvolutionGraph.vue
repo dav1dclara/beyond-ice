@@ -1,711 +1,381 @@
 <template>
-  <div v-if="selectedProjection || isComparisonMode" class="graph-container" @mouseleave="hoveredBar = null">
-    <!-- Loading state -->
+  <div
+    v-if="selectedProjection || isComparisonMode"
+    class="chart-wrapper"
+    @mouseleave="hoveredBar = null"
+  >
     <div v-if="chartLoading" class="chart-load-placeholder">
       <span class="loading-text">Loading chart data...</span>
     </div>
-    <!-- Chart (shown when loaded) -->
-    <div v-if="chartLoaded && (chartData.length > 0 || comparisonChartData.length > 0)" class="chart-container">
+    <div
+      v-if="
+        chartLoaded && (chartData.length > 0 || comparisonChartData.length > 0)
+      "
+      class="chart-container"
+    >
       <div class="chart-title">
         {{ selectedGlacier?.name || 'Overall' }}
       </div>
       <div class="chart-content">
-        <div class="y-axis-labels">
-          <div 
+        <div class="y-axis-ticks">
+          <div
             class="y-axis-label y-axis-max"
             :style="{ top: `${(getBarY(yAxisMax) / chartHeight) * 100}%` }"
           >
             {{ formatYAxisValue(yAxisMax) }}
           </div>
-          <div 
-            class="y-axis-label y-axis-middle"
-            :style="{ top: '50%' }"
-          >
-            {{ getTooltipUnit() }}
+          <div class="y-axis-label y-axis-middle" :style="{ top: '50%' }">
+            {{ getTooltipUnit(selectedMetric) }}
           </div>
-          <div 
-            class="y-axis-label y-axis-min"
-            :style="{ top: `${(chartHeight / chartHeight) * 100}%` }"
-          >
-            0
-          </div>
+          <div class="y-axis-label y-axis-min" :style="{ top: '100%' }">0</div>
         </div>
         <div class="chart-svg-container">
-        <svg class="bar-chart-svg" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none">
-          <!-- Horizontal reference lines -->
-          <line
-            :x1="-10"
-            :y1="chartHeight"
-            :x2="chartWidth"
-            :y2="chartHeight"
-            stroke="#d0d0d0"
-            stroke-width="1"
-            opacity="0.5"
-          />
-          <line
-            :x1="-10"
-            :y1="getBarY(yAxisMax)"
-            :x2="chartWidth"
-            :y2="getBarY(yAxisMax)"
-            stroke="#d0d0d0"
-            stroke-width="1"
-            opacity="0.5"
-          />
-          <!-- Bars -->
-          <template v-if="!isComparisonMode">
-            <!-- Single bar mode (default/overlay) -->
-            <path
-              v-for="(dataPoint, index) in chartData"
-              :key="`bar-${index}-${currentYear}`"
-              :d="getBarPath(
-                getBarX(index),
-                getBarY(getChartValue(dataPoint)),
-                barWidth,
-                getChartValue(dataPoint) === null ? 0.1 : Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
-              )"
-              :fill="dataPoint.year === currentYear ? '#d0d0d0' : COLORS.chart.barDefault"
-              :opacity="getChartValue(dataPoint) === null ? 0 : (dataPoint.year === currentYear ? 1 : 0.7)"
-              @mouseenter="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
-              @mousemove="getChartValue(dataPoint) !== null && handleBarHover(dataPoint, index, $event)"
-              @click="getChartValue(dataPoint) !== null && handleBarClick(dataPoint)"
-              @mouseleave="hoveredBar = null"
-              :style="{ cursor: getChartValue(dataPoint) !== null ? 'pointer' : 'default' }"
+          <svg
+            class="bar-chart-svg"
+            :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
+            preserveAspectRatio="none"
+          >
+            <line
+              :x1="-10"
+              :y1="chartHeight"
+              :x2="chartWidth"
+              :y2="chartHeight"
+              stroke="#d0d0d0"
+              stroke-width="1"
+              opacity="0.5"
             />
-          </template>
-          <template v-else>
-            <!-- Double bar mode (comparison) -->
-            <template v-for="(dataPoint, index) in chartData" :key="`year-${dataPoint.year}`">
-              <!-- Reference scenario bar (blue) -->
+            <line
+              :x1="-10"
+              :y1="getBarY(yAxisMax)"
+              :x2="chartWidth"
+              :y2="getBarY(yAxisMax)"
+              stroke="#d0d0d0"
+              stroke-width="1"
+              opacity="0.5"
+            />
+            <template v-if="!isComparisonMode">
+              <!-- Single scenario bars -->
               <path
-                v-if="getChartValue(dataPoint) !== null"
-                :d="getBarPath(
-                  getComparisonBarX(index, 'reference'),
-                  getBarY(getChartValue(dataPoint)),
-                  barWidth / 2,
-                  Math.max(2, chartHeight - getBarY(getChartValue(dataPoint)))
-                )"
-                fill="#3B82F6"
-                :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
-                @mouseenter="handleBarHover(dataPoint, index, $event, 'reference')"
-                @mousemove="handleBarHover(dataPoint, index, $event, 'reference')"
-                @click="handleBarClick(dataPoint)"
+                v-for="(dataPoint, index) in chartData"
+                :key="`bar-${index}-${currentYear}`"
+                :d="
+                  getBarPath(
+                    getBarX(index),
+                    getBarY(getChartValue(dataPoint)),
+                    barWidth,
+                    getChartValue(dataPoint) === null
+                      ? 0.1
+                      : Math.max(
+                          2,
+                          chartHeight - getBarY(getChartValue(dataPoint))
+                        )
+                  )
+                "
+                :fill="dataPoint.year === currentYear ? '#d0d0d0' : '#e5e5e5'"
+                :opacity="
+                  getChartValue(dataPoint) === null
+                    ? 0
+                    : dataPoint.year === currentYear
+                      ? 1
+                      : 0.7
+                "
+                @mouseenter="
+                  getChartValue(dataPoint) !== null &&
+                  handleBarHover(dataPoint, index, $event)
+                "
+                @mousemove="
+                  getChartValue(dataPoint) !== null &&
+                  handleBarHover(dataPoint, index, $event)
+                "
+                @click="
+                  getChartValue(dataPoint) !== null && handleBarClick(dataPoint)
+                "
                 @mouseleave="hoveredBar = null"
-                style="cursor: pointer"
-              />
-              <!-- Comparison scenario bar (orange) -->
-              <path
-                v-if="getComparisonValueForYear(dataPoint.year) !== null"
-                :d="getBarPath(
-                  getComparisonBarX(index, 'comparison'),
-                  getBarY(getComparisonValueForYear(dataPoint.year)),
-                  barWidth / 2,
-                  Math.max(2, chartHeight - getBarY(getComparisonValueForYear(dataPoint.year)))
-                )"
-                fill="#F97316"
-                :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
-                @mouseenter="handleComparisonBarHover(dataPoint.year, index, $event)"
-                @mousemove="handleComparisonBarHover(dataPoint.year, index, $event)"
-                @click="handleComparisonBarClick(dataPoint.year)"
-                @mouseleave="hoveredBar = null"
-                style="cursor: pointer"
+                :style="{
+                  cursor:
+                    getChartValue(dataPoint) !== null ? 'pointer' : 'default',
+                }"
               />
             </template>
-          </template>
-        </svg>
-        <div class="chart-metric-toggle">
-          <button
-            @click="selectedMetric = 'area'"
-            :class="{ active: selectedMetric === 'area' }"
-            class="metric-button"
-          >
-            Area (km²)
-          </button>
-          <button
-            @click="selectedMetric = 'volume'"
-            :class="{ active: selectedMetric === 'volume' }"
-            class="metric-button"
-          >
-            Volume (km³)
-          </button>
+            <template v-else>
+              <!-- Comparison mode: side-by-side bars for reference and comparison scenarios -->
+              <template
+                v-for="(dataPoint, index) in chartData"
+                :key="`year-${dataPoint.year}`"
+              >
+                <path
+                  v-if="getChartValue(dataPoint) !== null"
+                  :d="
+                    getBarPath(
+                      getComparisonBarX(index, 'reference'),
+                      getBarY(getChartValue(dataPoint)),
+                      barWidth / 2,
+                      Math.max(
+                        2,
+                        chartHeight - getBarY(getChartValue(dataPoint))
+                      )
+                    )
+                  "
+                  fill="#3B82F6"
+                  :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
+                  @mouseenter="
+                    handleBarHover(dataPoint, index, $event, 'reference')
+                  "
+                  @mousemove="
+                    handleBarHover(dataPoint, index, $event, 'reference')
+                  "
+                  @click="handleBarClick(dataPoint)"
+                  @mouseleave="hoveredBar = null"
+                  style="cursor: pointer"
+                />
+                <path
+                  v-if="getComparisonValueForYear(dataPoint.year) !== null"
+                  :d="
+                    getBarPath(
+                      getComparisonBarX(index, 'comparison'),
+                      getBarY(getComparisonValueForYear(dataPoint.year)),
+                      barWidth / 2,
+                      Math.max(
+                        2,
+                        chartHeight -
+                          getBarY(getComparisonValueForYear(dataPoint.year))
+                      )
+                    )
+                  "
+                  fill="#F97316"
+                  :opacity="dataPoint.year === currentYear ? 0.8 : 0.5"
+                  @mouseenter="
+                    handleComparisonBarHover(dataPoint.year, index, $event)
+                  "
+                  @mousemove="
+                    handleComparisonBarHover(dataPoint.year, index, $event)
+                  "
+                  @click="handleComparisonBarClick(dataPoint.year)"
+                  @mouseleave="hoveredBar = null"
+                  style="cursor: pointer"
+                />
+              </template>
+            </template>
+          </svg>
+          <div class="chart-metric-toggle">
+            <button
+              @click="selectedMetric = 'area'"
+              :class="{ active: selectedMetric === 'area' }"
+              class="metric-button"
+            >
+              Area (km²)
+            </button>
+            <button
+              @click="selectedMetric = 'volume'"
+              :class="{ active: selectedMetric === 'volume' }"
+              class="metric-button"
+            >
+              Volume (km³)
+            </button>
+          </div>
         </div>
       </div>
-      </div>
     </div>
-    <!-- Tooltip -->
-    <div 
-      v-if="hoveredBar !== null"
-      class="chart-tooltip"
-      :style="tooltipStyle"
-    >
+    <div v-if="hoveredBar !== null" class="chart-tooltip" :style="tooltipStyle">
       <div class="tooltip-year">{{ hoveredBar.year }}</div>
       <div class="tooltip-value">
-        {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit() }}
+        {{ formatValue(hoveredBar.value) }} {{ getTooltipUnit(selectedMetric) }}
       </div>
-      <div v-if="hoveredBar.change !== null && hoveredBar.change !== undefined" class="tooltip-change">
-        {{ formatChange(hoveredBar.change) }} since 2020
+      <div
+        v-if="hoveredBar.change !== null && hoveredBar.change !== undefined"
+        class="tooltip-change"
+      >
+        {{ formatChange(hoveredBar.change) }} since
+        {{ YEAR_CONFIG.MIN_YEAR }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import { COLORS } from '../config/colors.js'
+import { ref, computed, watch } from 'vue';
+import { YEAR_CONFIG } from '../config/years.js';
+import { SCENARIO_DEFAULTS } from '../config/scenarios.js';
+import {
+  formatValue,
+  formatChange,
+  formatYAxisValue,
+  getTooltipUnit,
+} from '../utils/chartFormatters.js';
+import { useEvolutionGraphData } from '../composables/useEvolutionGraphData.js';
 
-console.log('[EvolutionGraph] Script setup executed')
-
+/**
+ * Evolution Graph Component
+ * Displays a bar chart showing glacier area/volume evolution over time
+ * Supports single scenario view and comparison mode with two scenarios
+ */
 const props = defineProps({
   selectedProjection: {
     type: String,
-    default: null
+    default: null,
   },
   selectedGlacier: {
     type: Object,
-    default: null
+    default: null,
   },
   currentYear: {
     type: Number,
-    default: 2020
+    default: YEAR_CONFIG.DEFAULT_YEAR,
   },
   minYear: {
     type: Number,
-    default: 2020
+    default: YEAR_CONFIG.MIN_YEAR,
   },
   maxYear: {
     type: Number,
-    default: 2100
+    default: YEAR_CONFIG.MAX_YEAR,
   },
   step: {
     type: Number,
-    default: 2
+    default: YEAR_CONFIG.YEAR_STEP,
   },
   map: {
     type: Object,
-    default: null
+    default: null,
   },
   getSourceId: {
     type: Function,
-    default: null
+    default: null,
   },
   mapLoaded: {
     type: Boolean,
-    default: false
+    default: false,
   },
   currentMode: {
     type: String,
-    default: 'default'
+    default: 'default',
   },
   referenceScenario: {
     type: String,
-    default: 'SSP2-4.5'
+    default: SCENARIO_DEFAULTS.DEFAULT_REFERENCE_SCENARIO,
   },
   comparisonScenario: {
     type: String,
-    default: 'SSP5-8.5'
-  }
-})
+    default: SCENARIO_DEFAULTS.DEFAULT_COMPARISON_SCENARIO,
+  },
+});
 
-const emit = defineEmits(['year-change'])
+const emit = defineEmits(['year-change']);
 
-// Bar chart data and calculations
-const chartData = ref([])
-const comparisonChartData = ref([]) // Data for comparison scenario
-const chartWidth = 400
-const chartHeight = 120
-const barWidth = 8
-const selectedMetric = ref('area')
-const hoveredBar = ref(null)
-const tooltipStyle = ref({})
-const chartLoaded = ref(false)
-const chartLoading = ref(false)
-const lastLoadedGlacierId = ref(null)
-const lastLoadedProjection = ref(null)
-const isComparisonMode = computed(() => {
-  const result = props.currentMode === 'comparison'
-  console.log('[EvolutionGraph] isComparisonMode computed:', {
-    currentMode: props.currentMode,
-    result: result,
-    referenceScenario: props.referenceScenario,
-    comparisonScenario: props.comparisonScenario
-  })
-  return result
-})
+const isComparisonMode = computed(() => props.currentMode === 'comparison');
 
-// Debug: Log when component receives props
-watch(() => props.currentMode, (newMode) => {
-  console.log('[EvolutionGraph] currentMode changed:', newMode, 'isComparison:', isComparisonMode.value)
-}, { immediate: true })
+const {
+  chartData,
+  comparisonChartData,
+  chartLoaded,
+  chartLoading,
+  triggerChartLoad,
+} = useEvolutionGraphData(props, isComparisonMode);
 
-watch(() => [props.referenceScenario, props.comparisonScenario], ([ref, comp]) => {
-  console.log('[EvolutionGraph] Scenarios changed:', { reference: ref, comparison: comp })
-}, { immediate: true })
+// Chart dimensions
+const chartWidth = 400;
+const chartHeight = 120;
+const barWidth = 8;
 
-// Debug: Log component mount
-onMounted(() => {
-  console.log('[EvolutionGraph] Component mounted', {
-    currentMode: props.currentMode,
-    selectedProjection: props.selectedProjection,
-    referenceScenario: props.referenceScenario,
-    comparisonScenario: props.comparisonScenario,
-    isComparisonMode: isComparisonMode.value
-  })
-})
+// UI state
+const selectedMetric = ref('area');
+const hoveredBar = ref(null);
+const tooltipStyle = ref({});
 
-// Helper function to check if source is ready
-const isSourceReady = (projection) => {
-  if (!props.map || !props.getSourceId) return false
-  
-  const sourceId = props.getSourceId(projection)
-  const source = props.map.getSource(sourceId)
-  if (!source) return false
-  
-  // Check if source is loaded (for vector sources)
-  if (source.type === 'vector') {
-    // Check if source has loaded property or is ready
-    if (source.loaded && typeof source.loaded === 'function') {
-      return source.loaded()
-    }
-    // If no loaded function, assume it's ready if source exists
-    return true
-  }
-  
-  return false
-}
-
-// Helper function to query features from tileset for a specific year and projection
-const queryTilesetFeatures = (projection, year) => {
-  if (!props.map || !props.getSourceId) {
-    console.warn('[BarChart] Cannot query: map or getSourceId not available')
-    return []
-  }
-  
-  const sourceId = props.getSourceId(projection)
-  const source = props.map.getSource(sourceId)
-  if (!source) {
-    console.warn(`[BarChart] Source not found: ${sourceId} for projection: ${projection}`)
-    return []
-  }
-  
-  // For vector sources, need to specify source-layer (year)
-  if (source.type === 'vector') {
-    const sourceLayerName = year.toString()
-    try {
-      const features = props.map.querySourceFeatures(sourceId, {
-        sourceLayer: sourceLayerName
-      })
-      return features || []
-    } catch (error) {
-      console.warn(`[BarChart] Error querying features for ${projection}/${year}:`, error)
-      return []
-    }
-  }
-  
-  return []
-}
-
-// Helper to extract area/volume from feature properties
-const extractAreaVolume = (featureProps) => {
-  let areaValue = featureProps['Area (km2)'] ?? featureProps['area_km2'] ?? featureProps['Area'] ?? null
-  
-  if (areaValue === null || areaValue === undefined) {
-    const areaKey = Object.keys(featureProps).find(key => 
-      key.toLowerCase().includes('area') && 
-      (key.includes('km2') || key.includes('km²'))
-    )
-    areaValue = areaKey ? featureProps[areaKey] : 0
-  }
-  
-  const volumeValue = featureProps['Volume (km3)'] ?? 
-                     featureProps['volume_km3'] ?? 
-                     featureProps['Volume'] ??
-                     featureProps['volume'] ?? 0
-
-  return {
-    area: areaValue ?? 0,
-    volume: volumeValue ?? 0
-  }
-}
-
-// Load overall data from CSV (much faster and more reliable)
-const loadOverallDataFromCSV = async (projection) => {
-  const scenarioFolderMap = {
-    'SSP1-2.6': 'SSP126',
-    'SSP2-4.5': 'SSP245',
-    'SSP3-7.0': 'SSP370',
-    'SSP5-8.5': 'SSP585'
-  }
-  
-  const folder = scenarioFolderMap[projection]
-  if (!folder) {
-    console.warn(`[BarChart] Unknown projection: ${projection}`)
-    return null
-  }
-  
-  try {
-    const csvUrl = `${import.meta.env.BASE_URL}data/${folder}_totals.csv`
-    const response = await fetch(csvUrl)
-    
-    if (!response.ok) {
-      console.error(`[BarChart] CSV not found at ${csvUrl}`)
-      return null
-    }
-    
-    const csvText = await response.text()
-    const lines = csvText.trim().split('\n')
-    const headers = lines[0].split(',')
-    
-    // Find column indices
-    const yearIndex = headers.indexOf('year')
-    const areaIndex = headers.findIndex(h => h.toLowerCase().includes('area'))
-    const volumeIndex = headers.findIndex(h => h.toLowerCase().includes('volume'))
-    
-    if (yearIndex === -1 || areaIndex === -1 || volumeIndex === -1) {
-      console.warn('[BarChart] CSV missing required columns')
-      return null
-    }
-    
-    // Parse CSV data
-    const data = []
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',')
-      const year = parseInt(values[yearIndex])
-      const area = parseFloat(values[areaIndex]) || 0
-      const volume = parseFloat(values[volumeIndex]) || 0
-      
-      if (!isNaN(year)) {
-        data.push({ year, area, volume })
-      }
-    }
-    
-    // Calculate percentage changes from 2020
-    const baseline2020 = data.find(d => d.year === 2020)
-    if (baseline2020) {
-      return data.map(d => ({
-        year: d.year,
-        area: d.area,
-        volume: d.volume,
-        areaChange: baseline2020.area > 0 ? ((d.area - baseline2020.area) / baseline2020.area) * 100 : null,
-        volumeChange: baseline2020.volume > 0 ? ((d.volume - baseline2020.volume) / baseline2020.volume) * 100 : null
-      }))
-    }
-    
-    return data.map(d => ({
-      year: d.year,
-      area: d.area,
-      volume: d.volume,
-      areaChange: null,
-      volumeChange: null
-    }))
-  } catch (error) {
-    console.warn('[BarChart] Error loading CSV:', error)
-    return null
-  }
-}
-
-const loadChartData = async () => {
-  console.log('[EvolutionGraph] loadChartData called', {
-    isComparisonMode: isComparisonMode.value,
-    selectedProjection: props.selectedProjection,
-    referenceScenario: props.referenceScenario,
-    comparisonScenario: props.comparisonScenario,
-    currentMode: props.currentMode
-  })
-  
-  // In comparison mode, we need both scenarios
-  if (isComparisonMode.value) {
-    if (!props.referenceScenario || !props.comparisonScenario) {
-      chartData.value = []
-      comparisonChartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      return
-    }
-  } else {
-    if (!props.selectedProjection) {
-      chartData.value = []
-      comparisonChartData.value = []
-      chartLoaded.value = false
-      chartLoading.value = false
-      return
-    }
-  }
-
-  // Clear existing chart data immediately
-  chartData.value = []
-  comparisonChartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  
-  try {
-    const years = []
-    for (let year = props.minYear; year <= props.maxYear; year += props.step) {
-      years.push(year)
-    }
-
-    const glacierId = props.selectedGlacier?.id ?? null
-    const isOverallView = !glacierId
-    
-    // Helper function to load data for a single scenario
-    const loadDataForScenario = async (projection) => {
-      // For overall view, ALWAYS use CSV (no fallback to tileset)
-      if (isOverallView) {
-        const csvData = await loadOverallDataFromCSV(projection)
-        
-        if (csvData && csvData.length > 0) {
-          // Filter to only years we need and sort
-          return csvData
-            .filter(d => years.includes(d.year))
-            .sort((a, b) => a.year - b.year)
-        }
-        
-        return []
-      }
-      
-      // For individual glacier, use tileset
-      if (!props.map || !props.getSourceId) {
-        return []
-      }
-      
-      // Wait for source to be ready (with retry logic)
-      let retries = 0
-      const maxRetries = 10
-      const retryDelay = 100
-      
-      while (!isSourceReady(projection) && retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay))
-        retries++
-      }
-      
-      if (!isSourceReady(projection)) {
-        console.warn(`[BarChart] Source not ready after ${maxRetries} retries for ${projection}`)
-        return []
-      }
-      
-      // Query features for each year
-      const dataPoints = []
-      for (const year of years) {
-        const features = queryTilesetFeatures(projection, year)
-        
-        // Find the specific glacier
-        const glacierFeature = features.find(f => {
-          const fId = f.id || f.properties?.['mapbox-id'] || String(f.id)
-          const gId = glacierId || String(glacierId)
-          return String(fId) === String(gId) || fId === gId
-        })
-        
-        if (glacierFeature) {
-          const { area, volume } = extractAreaVolume(glacierFeature.properties)
-          dataPoints.push({
-            year,
-            area,
-            volume,
-            exists: true
-          })
-        } else {
-          // Glacier doesn't exist in this year
-          dataPoints.push({
-            year,
-            area: 0,
-            volume: 0,
-            exists: false
-          })
-        }
-      }
-      
-      return dataPoints
-    }
-    
-    // Load data based on mode
-    if (isComparisonMode.value) {
-      // Load both scenarios in parallel
-      const [refData, compData] = await Promise.all([
-        loadDataForScenario(props.referenceScenario),
-        loadDataForScenario(props.comparisonScenario)
-      ])
-      
-      console.log('[EvolutionGraph] Comparison mode data loaded:', {
-        reference: refData.length,
-        comparison: compData.length,
-        refScenario: props.referenceScenario,
-        compScenario: props.comparisonScenario,
-        refData: refData.slice(0, 3),
-        compData: compData.slice(0, 3)
-      })
-      
-      chartData.value = refData
-      comparisonChartData.value = compData
-      
-      console.log('[EvolutionGraph] After assignment:', {
-        chartDataLength: chartData.value.length,
-        comparisonChartDataLength: comparisonChartData.value.length,
-        chartDataYears: chartData.value.map(d => d.year),
-        comparisonDataYears: comparisonChartData.value.map(d => d.year),
-        firstRefData: chartData.value[0],
-        firstCompData: comparisonChartData.value[0]
-      })
-    } else {
-      // Load single scenario
-      const data = await loadDataForScenario(props.selectedProjection)
-      chartData.value = data
-    }
-    
-    // Add small delay to ensure loading state is visible
-    await new Promise(resolve => setTimeout(resolve, 200))
-    
-    chartLoaded.value = true
-    chartLoading.value = false
-    lastLoadedGlacierId.value = glacierId
-    lastLoadedProjection.value = isComparisonMode.value ? `${props.referenceScenario}-${props.comparisonScenario}` : props.selectedProjection
-  } catch (error) {
-    console.error('[BarChart] Error loading chart data:', error)
-    chartData.value = []
-    chartLoaded.value = false
-    chartLoading.value = false
-  }
-}
-
-// Trigger chart load with optional force flag
-const triggerChartLoad = async (force = false) => {
-  const glacierId = props.selectedGlacier?.id ?? null
-  const projectionKey = isComparisonMode.value 
-    ? `${props.referenceScenario}-${props.comparisonScenario}`
-    : props.selectedProjection
-  
-  // Skip if same glacier and projection (unless forced)
-  if (!force && 
-      lastLoadedGlacierId.value === glacierId && 
-      lastLoadedProjection.value === projectionKey) {
-    return
-  }
-  
-  loadChartData()
-}
-
+// Calculate X position for single scenario bars
 const getBarX = (index) => {
-  if (chartData.value.length === 0) return 0
-  const spacing = (chartWidth - barWidth) / (chartData.value.length - 1 || 1)
-  return index * spacing
-}
+  if (chartData.value.length === 0) return 0;
+  const spacing = (chartWidth - barWidth) / (chartData.value.length - 1 || 1);
+  return index * spacing;
+};
 
-// Get X position for comparison mode bars (half width, side by side)
+// Calculate X position for comparison mode bars (side by side, half width each)
 const getComparisonBarX = (index, type) => {
-  if (chartData.value.length === 0) return 0
-  const spacing = (chartWidth - barWidth) / (chartData.value.length - 1 || 1)
-  const baseX = index * spacing
-  // Reference bar on left, comparison bar on right
+  if (chartData.value.length === 0) return 0;
+  const spacing = (chartWidth - barWidth) / (chartData.value.length - 1 || 1);
+  const baseX = index * spacing;
   if (type === 'reference') {
-    return baseX
+    return baseX;
   } else {
-    return baseX + (barWidth / 2)
+    return baseX + barWidth / 2;
   }
-}
+};
 
-// Get the chart value - always use absolute value
+// Get value for a single scenario data point
 const getChartValue = (dataPoint) => {
-  const value = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
-  // Return null if glacier doesn't exist (to hide the bar)
+  const value =
+    selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume;
   if (dataPoint.exists === false) {
-    return null
+    return null;
   }
-  return value
-}
-
-// Get chart value for comparison scenario
-const getComparisonChartValue = (dataPoint) => {
-  const value = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
-  if (dataPoint.exists === false) {
-    return null
-  }
-  return value
-}
+  return value;
+};
 
 // Get comparison value for a specific year (matches by year, not index)
+// Used when rendering comparison bars to find matching data point
 const getComparisonValueForYear = (year) => {
   if (!comparisonChartData.value || comparisonChartData.value.length === 0) {
-    return null
+    return null;
   }
-  const compDataPoint = comparisonChartData.value.find(d => d.year === year)
+  const compDataPoint = comparisonChartData.value.find((d) => d.year === year);
   if (!compDataPoint) {
-    return null
+    return null;
   }
-  return getComparisonChartValue(compDataPoint)
-}
+  return getChartValue(compDataPoint);
+};
 
-// Get tooltip unit
-const getTooltipUnit = () => {
-  return selectedMetric.value === 'area' ? 'km²' : 'km³'
-}
-
-// Get min and max values for the chart
+// Get minimum and maximum values for the chart
 const getChartMinMax = () => {
-  if (chartData.value.length === 0) return { min: 0, max: 1 }
-  // Filter out null values (glaciers that don't exist) for y-axis calculation
-  const values = chartData.value.map(d => getChartValue(d)).filter(v => v !== null && v !== undefined)
-  
-  // In comparison mode, also include comparison data
+  if (chartData.value.length === 0) return { min: 0, max: 1 };
+  const values = chartData.value
+    .map((d) => getChartValue(d))
+    .filter((v) => v !== null && v !== undefined);
+
   if (isComparisonMode.value && comparisonChartData.value.length > 0) {
-    const comparisonValues = comparisonChartData.value.map(d => getComparisonChartValue(d)).filter(v => v !== null && v !== undefined)
-    values.push(...comparisonValues)
+    const comparisonValues = comparisonChartData.value
+      .map((d) => getChartValue(d))
+      .filter((v) => v !== null && v !== undefined);
+    values.push(...comparisonValues);
   }
-  
-  if (values.length === 0) return { min: 0, max: 1 }
+
+  if (values.length === 0) return { min: 0, max: 1 };
   return {
-    min: 0, // Always start from 0
-    max: Math.max(...values)
-  }
-}
+    min: 0,
+    max: Math.max(...values),
+  };
+};
 
-// Calculate rounded up max value for Y-axis
+// Calculate rounded Y-axis maximum using rounded increments for better readability
 const yAxisMax = computed(() => {
-  const { max } = getChartMinMax()
-  if (max === 0) return 1
-  
-  // Round up to a nice number, but keep it closer to the actual max
-  const magnitude = Math.pow(10, Math.floor(Math.log10(max)))
-  const normalized = max / magnitude
-  
-  // Nice numbers to round to
-  const niceNumbers = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10]
-  
-  // Find the next nice number that's strictly greater than normalized
-  // If normalized exactly matches a nice number, use the next one
-  const rounded = niceNumbers.find(n => n > normalized) || 10
-  
-  return rounded * magnitude
-})
+  const { max } = getChartMinMax();
+  if (max === 0) return 1;
 
-// Format Y-axis value
-const formatYAxisValue = (value) => {
-  if (value < 0.01) {
-    return value.toExponential(1)
-  } else if (value < 1) {
-    return value.toFixed(2)
-  } else if (value < 100) {
-    return value.toFixed(1)
-  } else {
-    return Math.round(value).toLocaleString()
-  }
-}
+  const magnitude = Math.pow(10, Math.floor(Math.log10(max)));
+  const normalized = max / magnitude;
+  const roundedIncrements = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10];
+  const rounded = roundedIncrements.find((n) => n > normalized) || 10;
 
+  return rounded * magnitude;
+});
+
+// Calculate Y position for bar top (chart uses bottom-up coordinate system)
+// Returns chartHeight for null/undefined (hides bar) or 0 values (shows 2px bar)
 const getBarY = (value) => {
-  if (chartData.value.length === 0) return chartHeight
-  const max = yAxisMax.value // Use rounded max for scaling
-  const range = max || 1
-  // If glacier doesn't exist (value is null), hide the bar completely
+  if (chartData.value.length === 0) return chartHeight;
+  const max = yAxisMax.value;
+  const range = max || 1;
   if (value === null || value === undefined) {
-    return chartHeight // Bar height will be 0
+    return chartHeight;
   }
-  // For 0 values, show a small bar at the bottom instead of no bar
   if (value === 0) {
-    return chartHeight - 2 // 2px bar height for zero values
+    return chartHeight - 2;
   }
-  return chartHeight - ((value / range) * chartHeight)
-}
+  return chartHeight - (value / range) * chartHeight;
+};
 
+// Generate SVG path for bar with rounded top corners only
 const getBarPath = (x, y, width, height) => {
-  const radius = 4
-  // Path for rectangle with only top corners rounded
-  // Start from top-left (after rounded corner)
+  const radius = 4;
   return `M ${x + radius} ${y} 
           L ${x + width - radius} ${y} 
           Q ${x + width} ${y} ${x + width} ${y + radius} 
@@ -713,196 +383,195 @@ const getBarPath = (x, y, width, height) => {
           L ${x} ${y + height} 
           L ${x} ${y + radius} 
           Q ${x} ${y} ${x + radius} ${y} 
-          Z`
-}
+          Z`;
+};
 
+// Handle bar hover: calculate tooltip data and position
+// Calculates percentage change relative to first year in dataset
 const handleBarHover = (dataPoint, index, event, scenarioType = null) => {
-  // Get absolute value for display
-  const absoluteValue = scenarioType === 'comparison' 
-    ? getComparisonChartValue(dataPoint)
-    : getChartValue(dataPoint)
-  
-  // Get relative change from first year
-  let relativeChange = null
-  const dataSource = scenarioType === 'comparison' ? comparisonChartData.value : chartData.value
+  const absoluteValue = getChartValue(dataPoint);
+
+  let relativeChange = null;
+  const dataSource =
+    scenarioType === 'comparison' ? comparisonChartData.value : chartData.value;
   if (dataSource.length > 0) {
-    const firstYearData = dataSource[0]
-    const firstYearValue = selectedMetric.value === 'area' ? firstYearData.area : firstYearData.volume
-    const currentValue = selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume
-    
-    if (firstYearValue > 0 && firstYearValue !== null && firstYearValue !== undefined) {
-      relativeChange = ((currentValue - firstYearValue) / firstYearValue) * 100
+    const firstYearData = dataSource[0];
+    const firstYearValue =
+      selectedMetric.value === 'area'
+        ? firstYearData.area
+        : firstYearData.volume;
+    const currentValue =
+      selectedMetric.value === 'area' ? dataPoint.area : dataPoint.volume;
+
+    if (
+      firstYearValue > 0 &&
+      firstYearValue !== null &&
+      firstYearValue !== undefined
+    ) {
+      relativeChange = ((currentValue - firstYearValue) / firstYearValue) * 100;
     }
   }
-  
+
   hoveredBar.value = {
     year: dataPoint.year,
     value: absoluteValue,
     change: relativeChange,
-    scenario: scenarioType === 'comparison' ? props.comparisonScenario : (scenarioType === 'reference' ? props.referenceScenario : props.selectedProjection)
-  }
-  
-  // Position tooltip near the cursor
-  const svgElement = event.currentTarget.closest('.graph-container')
+    scenario:
+      scenarioType === 'comparison'
+        ? props.comparisonScenario
+        : scenarioType === 'reference'
+          ? props.referenceScenario
+          : props.selectedProjection,
+  };
+
+  const svgElement = event.currentTarget.closest('.chart-wrapper');
   if (svgElement) {
-    const rect = svgElement.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    
-    // Calculate tooltip position, keeping it within bounds
-    const tooltipWidth = 100 // Approximate tooltip width
-    const tooltipHeight = 50 // Approximate tooltip height
-    let left = x + 10
-    let top = y - 40
-    
-    // Keep tooltip within wrapper bounds
+    const rect = svgElement.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const tooltipWidth = 100;
+    const tooltipHeight = 50;
+    let left = x + 10;
+    let top = y - 40;
+
     if (left + tooltipWidth > rect.width) {
-      left = x - tooltipWidth - 10
+      left = x - tooltipWidth - 10;
     }
     if (top < 0) {
-      top = y + 20
+      top = y + 20;
     }
     if (top + tooltipHeight > rect.height) {
-      top = rect.height - tooltipHeight - 10
+      top = rect.height - tooltipHeight - 10;
     }
-    
+
     tooltipStyle.value = {
       left: `${Math.max(0, left)}px`,
-      top: `${Math.max(0, top)}px`
-    }
+      top: `${Math.max(0, top)}px`,
+    };
   }
-}
+};
 
 const handleBarClick = (dataPoint) => {
-  emit('year-change', dataPoint.year)
-}
+  emit('year-change', dataPoint.year);
+};
 
 const handleComparisonBarHover = (year, index, event) => {
-  const compDataPoint = comparisonChartData.value.find(d => d.year === year)
+  const compDataPoint = comparisonChartData.value.find((d) => d.year === year);
   if (compDataPoint) {
-    handleBarHover(compDataPoint, index, event, 'comparison')
+    handleBarHover(compDataPoint, index, event, 'comparison');
   }
-}
+};
 
 const handleComparisonBarClick = (year) => {
-  emit('year-change', year)
-}
+  emit('year-change', year);
+};
 
-const formatChange = (change) => {
-  if (change === null || change === undefined) return ''
-  const sign = change >= 0 ? '+' : ''
-  return `${sign}${change.toFixed(1)}%`
-}
-
-const formatValue = (value) => {
-  if (value === null || value === undefined || value === 0) {
-    return '0'
-  }
-  
-  // Format with appropriate decimal places for absolute values
-  if (value < 0.01) {
-    return value.toExponential(2)
-  } else if (value < 1) {
-    return value.toFixed(3)
-  } else if (value < 100) {
-    return value.toFixed(2)
-  } else {
-    return value.toFixed(1)
-  }
-}
-
-// Watch for map loaded - trigger initial load when map becomes ready
-watch(() => props.mapLoaded, (loaded) => {
-  if (loaded) {
-    if (isComparisonMode.value) {
-      if (props.referenceScenario && props.comparisonScenario) {
-        triggerChartLoad(true)
-      }
-    } else {
-      if (props.selectedProjection) {
-        triggerChartLoad(true)
+// Watch for map loaded state - trigger initial chart load when map is ready
+watch(
+  () => props.mapLoaded,
+  (loaded) => {
+    if (loaded) {
+      if (isComparisonMode.value) {
+        if (props.referenceScenario && props.comparisonScenario) {
+          triggerChartLoad(true);
+        }
+      } else {
+        if (props.selectedProjection) {
+          triggerChartLoad(true);
+        }
       }
     }
   }
-})
+);
 
-// Watch for changes - auto-load chart when glacier, projection, mode, or scenarios change (NOT on year changes)
-watch([() => props.selectedGlacier, () => props.selectedProjection, () => props.currentMode, () => props.referenceScenario, () => props.comparisonScenario], async (newValues, oldValues) => {
-  // Skip on initial immediate call if values haven't changed
-  if (oldValues === undefined) {
-    await triggerChartLoad()
-    return
-  }
-  
-  // Extract IDs for comparison (not object references)
-  const newGlacier = newValues[0]
-  const oldGlacier = oldValues[0]
-  const newGlacierId = newGlacier?.id ?? null
-  const oldGlacierId = oldGlacier?.id ?? null
-  const newProjection = newValues[1]
-  const oldProjection = oldValues[1]
-  const newMode = newValues[2]
-  const oldMode = oldValues[2]
-  const newRefScenario = newValues[3]
-  const oldRefScenario = oldValues[3]
-  const newCompScenario = newValues[4]
-  const oldCompScenario = oldValues[4]
-  
-  // Check if anything changed - compare IDs, not object references
-  // This prevents false positives when objects are recreated with same ID
-  const glacierIdChanged = newGlacierId !== oldGlacierId
-  const projectionChanged = newProjection !== oldProjection
-  const modeChanged = newMode !== oldMode
-  const refScenarioChanged = newRefScenario !== oldRefScenario
-  const compScenarioChanged = newCompScenario !== oldCompScenario
-  
-  // Only proceed if glacier ID, projection, mode, or scenarios actually changed (NOT on year changes)
-  if (!glacierIdChanged && !projectionChanged && !modeChanged && !refScenarioChanged && !compScenarioChanged) {
-    // Nothing changed, don't reload - this prevents reloads on year changes
-    return
-  }
-  
-  // If glacier or projection changed, clear chart immediately and wait 0.5 seconds
-  // Clear chart immediately - make it blank
-  chartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  
-  // Wait 0.5 seconds before loading new data (chart stays blank during this time)
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  await triggerChartLoad()
-}, { immediate: true })
+// Watch for data source changes (glacier, projection, mode, scenarios)
+// Compares IDs to avoid false positives from object reference changes
+// Includes 500ms delay for visual feedback when switching data sources
+watch(
+  [
+    () => props.selectedGlacier,
+    () => props.selectedProjection,
+    () => props.currentMode,
+    () => props.referenceScenario,
+    () => props.comparisonScenario,
+  ],
+  async (newValues, oldValues) => {
+    if (oldValues === undefined) {
+      await triggerChartLoad();
+      return;
+    }
 
-// Watch for metric changes - clear chart and show loading state
-watch(() => selectedMetric.value, async () => {
-  // Store current data before clearing
-  const currentData = chartData.value.length > 0 ? [...chartData.value] : null
-  
-  // Clear chart data immediately - make it blank
-  chartData.value = []
-  chartLoaded.value = false
-  chartLoading.value = true
-  hoveredBar.value = null
-  
-  // Wait 0.5 seconds before showing chart again (chart stays blank during this time)
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  if (props.selectedProjection && currentData) {
-    // Restore the data - it already contains both area and volume
-    chartData.value = currentData
-    chartLoading.value = false
-    chartLoaded.value = true
-  } else {
-    chartLoading.value = false
+    const newGlacier = newValues[0];
+    const oldGlacier = oldValues[0];
+    const newGlacierId = newGlacier?.id ?? null;
+    const oldGlacierId = oldGlacier?.id ?? null;
+    const newProjection = newValues[1];
+    const oldProjection = oldValues[1];
+    const newMode = newValues[2];
+    const oldMode = oldValues[2];
+    const newRefScenario = newValues[3];
+    const oldRefScenario = oldValues[3];
+    const newCompScenario = newValues[4];
+    const oldCompScenario = oldValues[4];
+
+    const glacierIdChanged = newGlacierId !== oldGlacierId;
+    const projectionChanged = newProjection !== oldProjection;
+    const modeChanged = newMode !== oldMode;
+    const refScenarioChanged = newRefScenario !== oldRefScenario;
+    const compScenarioChanged = newCompScenario !== oldCompScenario;
+
+    if (
+      !glacierIdChanged &&
+      !projectionChanged &&
+      !modeChanged &&
+      !refScenarioChanged &&
+      !compScenarioChanged
+    ) {
+      return;
+    }
+
+    chartData.value = [];
+    chartLoaded.value = false;
+    chartLoading.value = true;
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    await triggerChartLoad();
+  },
+  { immediate: true }
+);
+
+// Watch for metric changes (area/volume toggle)
+// Restores existing data after delay since data contains both metrics
+watch(
+  () => selectedMetric.value,
+  async () => {
+    const currentData =
+      chartData.value.length > 0 ? [...chartData.value] : null;
+
+    chartData.value = [];
+    chartLoaded.value = false;
+    chartLoading.value = true;
+    hoveredBar.value = null;
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    if (props.selectedProjection && currentData) {
+      chartData.value = currentData;
+      chartLoading.value = false;
+      chartLoaded.value = true;
+    } else {
+      chartLoading.value = false;
+    }
   }
-})
+);
 </script>
 
 <style scoped>
-.graph-container {
+.chart-wrapper {
   position: relative;
-  width: flex;
+  width: 100%;
   height: 150px;
   display: flex;
   flex-direction: column;
@@ -957,7 +626,7 @@ watch(() => selectedMetric.value, async () => {
   align-items: stretch;
 }
 
-.y-axis-labels {
+.y-axis-ticks {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -992,32 +661,24 @@ watch(() => selectedMetric.value, async () => {
   display: block;
 }
 
-.chart-svg-container .chart-metric-toggle {
+.chart-metric-toggle {
   position: absolute;
   top: 8px;
   right: 8px;
   display: flex;
   gap: 4px;
-  background: #FFFFFF;
+  background: white;
   border-radius: 6px;
   padding: 2px;
   z-index: 10;
   border: 1px solid #e5e5e5;
 }
 
-.chart-metric-toggle {
-  display: flex;
-  gap: 4px;
-  background: #FFFFFF;
-  border-radius: 6px;
-  padding: 2px;
-}
-
 .metric-button {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 400;
-  color: #666666;
+  color: #666;
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -1027,12 +688,12 @@ watch(() => selectedMetric.value, async () => {
 
 .metric-button:hover {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
 }
 
 .metric-button.active {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
   font-weight: 600;
 }
 

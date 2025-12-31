@@ -261,11 +261,7 @@ export function useLayers(
       }
 
       const decadeYears = [];
-      for (
-        let y = YEAR_CONFIG.MIN_YEAR;
-        y <= YEAR_CONFIG.MAX_YEAR;
-        y += 10
-      ) {
+      for (let y = YEAR_CONFIG.MIN_YEAR; y <= YEAR_CONFIG.MAX_YEAR; y += 10) {
         decadeYears.push(y);
       }
 

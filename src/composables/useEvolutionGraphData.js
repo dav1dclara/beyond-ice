@@ -117,7 +117,10 @@ export function useEvolutionGraphData(props, isComparisonMode) {
       }
 
       const csvText = await response.text();
-      const lines = csvText.trim().split('\n').filter((line) => line.trim());
+      const lines = csvText
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim());
       const headers = parseCSVLine(lines[0]);
 
       const yearIndex = headers.findIndex((h) => h.toLowerCase() === 'year');
@@ -202,7 +205,9 @@ export function useEvolutionGraphData(props, isComparisonMode) {
 
     try {
       const years = Array.from(
-        { length: Math.floor((props.maxYear - props.minYear) / props.step) + 1 },
+        {
+          length: Math.floor((props.maxYear - props.minYear) / props.step) + 1,
+        },
         (_, i) => props.minYear + i * props.step
       );
 

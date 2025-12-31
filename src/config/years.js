@@ -7,4 +7,3 @@ export const YEAR_CONFIG = {
   YEAR_STEP: 2,
   DEFAULT_YEAR: 2020,
 };
-

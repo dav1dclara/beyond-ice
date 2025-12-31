@@ -1,5 +1,5 @@
 <template>
-  <div v-if="mapLoaded" class="top-right-controls">
+  <div v-if="mapLoaded" class="map-controls">
     <button
       @click="$emit('zoom-to-extent')"
       class="control-button"
@@ -85,7 +85,7 @@ defineEmits([
 </script>
 
 <style scoped>
-.top-right-controls {
+.map-controls {
   position: absolute;
   top: 10px;
   right: 56px;
