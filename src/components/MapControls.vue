@@ -5,9 +5,20 @@
       class="control-button"
       title="Zoom to full extent of data"
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <!-- Home icon: roof and base -->
-        <polygon points="12 3 3 10 5 10 5 20 19 20 19 10 21 10" fill="none"></polygon>
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polygon
+          points="12 3 3 10 5 10 5 20 19 20 19 10 21 10"
+          fill="none"
+        ></polygon>
       </svg>
     </button>
     <button
@@ -15,21 +26,14 @@
       class="control-button"
       title="Reset map to north"
     >
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <!-- Upward triangle (darker gray) -->
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
         <polygon points="12 2 6 10 18 10" fill="#333"></polygon>
-        <!-- Downward triangle (lighter gray) -->
         <polygon points="12 22 6 14 18 14" fill="#999"></polygon>
       </svg>
     </button>
     <button
       @click="$emit('toggle-terrain')"
-      class="control-button toggle-3d-button"
+      class="control-button"
       :class="{ 'is-3d': is3D }"
       :title="is3D ? 'Switch to 2D view' : 'Switch to 3D view'"
     >
@@ -60,29 +64,33 @@
 defineProps({
   mapLoaded: {
     type: Boolean,
-    required: true
+    required: true,
   },
   is3D: {
     type: Boolean,
-    required: true
+    required: true,
   },
   isSatellite: {
     type: Boolean,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-defineEmits(['zoom-to-extent', 'reset-bearing', 'toggle-terrain', 'toggle-basemap'])
+defineEmits([
+  'zoom-to-extent',
+  'reset-bearing',
+  'toggle-terrain',
+  'toggle-basemap',
+]);
 </script>
 
 <style scoped>
 .top-right-controls {
   position: absolute;
   top: 10px;
-  right: 56px; /* Make room for imprint button */
+  right: 56px;
   z-index: 1000;
   display: flex;
-  flex-direction: row;
   gap: 8px;
   align-items: center;
 }
@@ -98,7 +106,10 @@ defineEmits(['zoom-to-extent', 'reset-bearing', 'toggle-terrain', 'toggle-basema
   border-radius: 8px;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s,
+    background 0.2s;
   color: #444;
   padding: 0;
   font-size: 13px;
@@ -115,16 +126,6 @@ defineEmits(['zoom-to-extent', 'reset-bearing', 'toggle-terrain', 'toggle-basema
 .control-button svg {
   width: 18px;
   height: 18px;
-}
-
-.control-button.is-3d {
-  background: white;
-  color: #444;
-  border-color: #e5e5e5;
-}
-
-.control-button.is-3d:hover {
-  background: #f5f5f5;
 }
 
 .basemap-toggle {
@@ -165,4 +166,3 @@ defineEmits(['zoom-to-extent', 'reset-bearing', 'toggle-terrain', 'toggle-basema
   font-weight: 500;
 }
 </style>
-
