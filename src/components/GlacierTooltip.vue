@@ -6,7 +6,7 @@
   >
     <div class="tooltip-content">
       <div v-if="featureProps?.name" class="tooltip-title">
-        {{ featureProps.name }}
+        {{ featureProps.name }}<span v-if="displayYear"> ({{ displayYear }})</span>
       </div>
       <div class="tooltip-properties">
         <div v-if="featureProps?.['sgi-id']" class="tooltip-row">
@@ -55,6 +55,10 @@ const props = defineProps({
       );
     },
   },
+  currentYear: {
+    type: Number,
+    default: null,
+  },
 });
 
 const featureProps = computed(() => props.tooltip.feature?.properties);
@@ -68,6 +72,24 @@ const getVolumeValue = computed(
 const areaChange = computed(() => featureProps.value?.['Area change (%)']);
 
 const volumeChange = computed(() => featureProps.value?.['Volume change (%)']);
+
+// Extract year from layer ID (for overlay mode) or use currentYear (for dynamic mode)
+const displayYear = computed(() => {
+  const feature = props.tooltip.feature;
+  if (!feature) return null;
+  
+  // Try to extract year from layer ID (format: "glacier-layer-{proj}-{year}")
+  if (feature.layer?.id) {
+    const layerId = feature.layer.id;
+    const yearMatch = layerId.match(/-(\d{4})$/);
+    if (yearMatch) {
+      return yearMatch[1];
+    }
+  }
+  
+  // Fall back to currentYear prop
+  return props.currentYear;
+});
 
 // Compute tooltip position style
 const tooltipStyle = computed(() => ({
