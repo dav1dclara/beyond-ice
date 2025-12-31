@@ -33,7 +33,7 @@ export function useGlacierZoom(
 
     const { min_lng, min_lat, max_lng, max_lat } = bounds;
 
-    const gridSize = 5; // 5x5 grid = 25 sample points
+    const gridSize = 5;
     const lngStep = (max_lng - min_lng) / (gridSize - 1);
     const latStep = (max_lat - min_lat) / (gridSize - 1);
 
@@ -63,8 +63,8 @@ export function useGlacierZoom(
 
     // Calculate aspect (direction of steepest slope) using gradient
     // Aspect: 0° = North, 90° = East, 180° = South, 270° = West
-    let aspectX = 0; // East-West component
-    let aspectY = 0; // North-South component
+    let aspectX = 0;
+    let aspectY = 0;
     let totalSlope = 0;
     let sampleCount = 0;
 
@@ -109,10 +109,9 @@ export function useGlacierZoom(
     let aspect = Math.atan2(avgAspectX, avgAspectY) * (180 / Math.PI);
     aspect = (aspect + 360) % 360;
 
-    // Bearing should be opposite of aspect (180° rotation) to view from uphill side
+    // Bearing opposite of aspect (180° rotation) to view from uphill side
     let bearing = (aspect + 180) % 360;
 
-    // Debug logging
     console.log('[Terrain Camera] Aspect calculation:', {
       avgAspectX: avgAspectX.toFixed(4),
       avgAspectY: avgAspectY.toFixed(4),
@@ -136,6 +135,124 @@ export function useGlacierZoom(
     pitch = Math.min(65, Math.max(45, pitch));
 
     return { bearing, pitch };
+  };
+
+  /**
+   * Zoom to bounds with terrain-aware camera positioning
+   * @param {Object} bounds - Bounds object with min_lng, min_lat, max_lng, max_lat
+   * @param {string} [mapboxId] - Optional mapbox ID to look up aspect/slope from search index
+   * @returns {Promise<void>} Promise that resolves when zoom animation completes
+   */
+  const zoomToBounds = async (bounds, mapboxId = null) => {
+    if (!map.value) {
+      console.warn('[GlacierZoom] Cannot zoom: map not available');
+      return;
+    }
+
+    const { min_lng, min_lat, max_lng, max_lat } = bounds;
+
+    try {
+      const centerLng = (min_lng + max_lng) / 2;
+      const centerLat = (min_lat + max_lat) / 2;
+
+      let bearing = 0;
+      let pitch = 50;
+
+      if (is3D.value) {
+        const glacierEntry = mapboxId
+          ? glacierSearchIndex.value.find((entry) => entry.mapbox_id === mapboxId)
+          : null;
+
+        if (glacierEntry) {
+          if (
+            glacierEntry.aspect_deg !== undefined &&
+            glacierEntry.aspect_deg !== null
+          ) {
+            bearing = (glacierEntry.aspect_deg + 180) % 360;
+          } else {
+            const cameraAngle = calculateTerrainCameraAngle(bounds);
+            bearing = cameraAngle.bearing;
+            pitch = cameraAngle.pitch;
+          }
+
+          if (
+            glacierEntry.slope_deg !== undefined &&
+            glacierEntry.slope_deg !== null
+          ) {
+            // Pitch range: 45-65 degrees (steeper slopes = higher pitch)
+            pitch = 45 + glacierEntry.slope_deg * 0.5;
+            pitch = Math.min(65, Math.max(45, pitch));
+          }
+        } else {
+          const cameraAngle = calculateTerrainCameraAngle(bounds);
+          bearing = cameraAngle.bearing;
+          pitch = cameraAngle.pitch;
+        }
+
+        if (!map.value.getSource('mapbox-dem')) {
+          map.value.addSource('mapbox-dem', {
+            type: 'raster-dem',
+            url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            tileSize: 256,
+            maxzoom: 11,
+          });
+        }
+
+        if (!map.value.getTerrain()) {
+          map.value.setTerrain({
+            source: 'mapbox-dem',
+            exaggeration: 1.0,
+          });
+        }
+
+        const boundsArray = [
+          [min_lng, min_lat],
+          [max_lng, max_lat],
+        ];
+        const padding = { top: 100, bottom: 100, left: 100, right: 100 };
+
+        const cameraOptions = map.value.cameraForBounds(boundsArray, {
+          padding: padding,
+        });
+
+        map.value.flyTo({
+          center: cameraOptions.center || [centerLng, centerLat],
+          zoom: cameraOptions.zoom,
+          bearing: bearing,
+          pitch: pitch,
+          duration: 2000,
+          essential: true,
+        });
+      } else {
+        const boundsArray = [
+          [min_lng, min_lat],
+          [max_lng, max_lat],
+        ];
+        const padding = { top: 100, bottom: 100, left: 100, right: 100 };
+
+        const cameraOptions = map.value.cameraForBounds(boundsArray, {
+          padding: padding,
+        });
+
+        const zoomedOutZoom = cameraOptions.zoom
+          ? cameraOptions.zoom - 0.5
+          : undefined;
+
+        map.value.flyTo({
+          center: cameraOptions.center || [centerLng, centerLat],
+          zoom: zoomedOutZoom,
+          duration: 1000,
+        });
+      }
+
+      await new Promise((resolve) => {
+        map.value.once('idle', () => {
+          setTimeout(() => resolve(), 300);
+        });
+      });
+    } catch (error) {
+      console.error('[GlacierZoom] Error zooming to bounds:', error);
+    }
   };
 
   /**
@@ -168,106 +285,19 @@ export function useGlacierZoom(
       return;
     }
 
-    const { min_lng, min_lat, max_lng, max_lat } = glacierEntry.bounds;
-    const bounds = { min_lng, min_lat, max_lng, max_lat };
+    const bounds = {
+      min_lng: glacierEntry.bounds.min_lng,
+      min_lat: glacierEntry.bounds.min_lat,
+      max_lng: glacierEntry.bounds.max_lng,
+      max_lat: glacierEntry.bounds.max_lat,
+    };
 
-    try {
-      const centerLng = (min_lng + max_lng) / 2;
-      const centerLat = (min_lat + max_lat) / 2;
-
-      let bearing = 0;
-      let pitch = 50;
-
-      if (is3D.value) {
-        if (
-          glacierEntry.aspect_deg !== undefined &&
-          glacierEntry.aspect_deg !== null
-        ) {
-          // Bearing opposite of aspect (180° rotation) to view from uphill side
-          bearing = (glacierEntry.aspect_deg + 180) % 360;
-        } else {
-          const cameraAngle = calculateTerrainCameraAngle(bounds);
-          bearing = cameraAngle.bearing;
-          pitch = cameraAngle.pitch;
-        }
-
-        if (
-          glacierEntry.slope_deg !== undefined &&
-          glacierEntry.slope_deg !== null
-        ) {
-          // Pitch range: 45-65 degrees (steeper slopes = higher pitch)
-          pitch = 45 + glacierEntry.slope_deg * 0.5;
-          pitch = Math.min(65, Math.max(45, pitch));
-        }
-      }
-
-      if (is3D.value) {
-        if (!map.value.getSource('mapbox-dem')) {
-          map.value.addSource('mapbox-dem', {
-            type: 'raster-dem',
-            url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-            tileSize: 256,
-            maxzoom: 11,
-          });
-        }
-
-        if (!map.value.getTerrain()) {
-          map.value.setTerrain({
-            source: 'mapbox-dem',
-            exaggeration: 1.0,
-          });
-        }
-
-        const bounds = [
-          [min_lng, min_lat],
-          [max_lng, max_lat],
-        ];
-        const padding = { top: 100, bottom: 100, left: 100, right: 100 };
-
-        const cameraOptions = map.value.cameraForBounds(bounds, {
-          padding: padding,
-        });
-
-        map.value.flyTo({
-          center: cameraOptions.center || [centerLng, centerLat],
-          zoom: cameraOptions.zoom,
-          bearing: bearing,
-          pitch: pitch,
-          duration: 2000,
-          essential: true,
-        });
-
-      } else {
-        const bounds = [
-          [min_lng, min_lat],
-          [max_lng, max_lat],
-        ];
-        const padding = { top: 100, bottom: 100, left: 100, right: 100 };
-
-        const cameraOptions = map.value.cameraForBounds(bounds, {
-          padding: padding,
-        });
-
-        const zoomedOutZoom = cameraOptions.zoom
-          ? cameraOptions.zoom - 0.5
-          : undefined;
-
-        map.value.flyTo({
-          center: cameraOptions.center || [centerLng, centerLat],
-          zoom: zoomedOutZoom,
-          duration: 1000,
-        });
-      }
-    } catch (error) {
-      console.error(
-        '[GlacierZoom] Error zooming to glacier extent:',
-        error
-      );
-    }
+    zoomToBounds(bounds, mapboxId);
   };
 
   return {
     calculateTerrainCameraAngle,
     zoomToGlacierExtent,
+    zoomToBounds,
   };
 }
