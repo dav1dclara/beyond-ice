@@ -1,9 +1,10 @@
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import eslint from 'vite-plugin-eslint';
 
 export default defineConfig({
-  base: "/project/dclara/", // IMPORTANT: Replace with your student ID
-  plugins: [vue()],
+  base: '/project/dclara/',
+  plugins: [vue(), eslint()],
   server: {
     port: 3000,
     open: true,
