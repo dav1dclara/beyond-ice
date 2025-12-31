@@ -6,7 +6,7 @@
       <MapLoadOverlay v-if="!mapLoaded" @load="initializeMap" />
     </Transition>
 
-    <Legend
+    <VisualizationPanel
       v-if="mapLoaded"
       :current-mode="mapMode === 'dynamic' ? 'default' : mapMode"
       :current-visualization="visualization"
@@ -92,7 +92,7 @@ import { TILESET_IDS } from '../config/tilesets.js';
 import SearchBar from './SearchBar.vue';
 import MapLoadOverlay from './MapLoadOverlay.vue';
 import ControlPanel from './ControlPanel.vue';
-import Legend from './Legend.vue';
+import VisualizationPanel from './VisualizationPanel.vue';
 import MapControls from './MapControls.vue';
 import GlacierTooltip from './GlacierTooltip.vue';
 import Imprint from './Imprint.vue';
