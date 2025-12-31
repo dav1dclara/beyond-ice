@@ -60,7 +60,9 @@ const featureProps = computed(() => props.tooltip.feature?.properties);
 
 const getAreaValue = computed(() => featureProps.value?.['Area (km2)'] ?? null);
 
-const getVolumeValue = computed(() => featureProps.value?.['Volume (km3)'] ?? null);
+const getVolumeValue = computed(
+  () => featureProps.value?.['Volume (km3)'] ?? null
+);
 
 const areaChange = computed(() => featureProps.value?.['Area change (%)']);
 

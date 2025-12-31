@@ -93,9 +93,7 @@ export function useClickSelection(
       });
 
       if (overlayLayerIds.length === 0) {
-        console.warn(
-          '[useClickSelection] No visible overlay layers to query'
-        );
+        console.warn('[useClickSelection] No visible overlay layers to query');
         return;
       }
 

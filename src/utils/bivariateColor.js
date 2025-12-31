@@ -18,7 +18,8 @@ export function getBivariateColor(areaChange, volumeChange) {
   }
 
   const areaRel = Math.abs(areaChange) > 1 ? areaChange / 100 : areaChange;
-  const volumeRel = Math.abs(volumeChange) > 1 ? volumeChange / 100 : volumeChange;
+  const volumeRel =
+    Math.abs(volumeChange) > 1 ? volumeChange / 100 : volumeChange;
 
   const x = -volumeRel;
   const y = -areaRel;
@@ -181,4 +182,3 @@ export function getBivariateColorExpression() {
     '#E5E5E5',
   ];
 }
-

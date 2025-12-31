@@ -8,4 +8,3 @@ export const TILESET_IDS = {
   'SSP3-7.0': 'davidclara.0sefku7k',
   'SSP5-8.5': 'davidclara.20v6wfcu',
 };
-

@@ -10,12 +10,7 @@ import mapboxgl from 'mapbox-gl';
  * @param {Ref<Boolean>} is3D - Whether 3D mode is enabled
  * @returns {Object} Zoom functions
  */
-export function useGlacierZoom(
-  map,
-  selectedGlacier,
-  glacierSearchIndex,
-  is3D
-) {
+export function useGlacierZoom(map, selectedGlacier, glacierSearchIndex, is3D) {
   /**
    * Calculate optimal camera angle (bearing and pitch) from terrain
    * Samples elevation at grid points and calculates aspect/slope
@@ -160,7 +155,9 @@ export function useGlacierZoom(
 
       if (is3D.value) {
         const glacierEntry = mapboxId
-          ? glacierSearchIndex.value.find((entry) => entry.mapbox_id === mapboxId)
+          ? glacierSearchIndex.value.find(
+              (entry) => entry.mapbox_id === mapboxId
+            )
           : null;
 
         if (glacierEntry) {
@@ -261,9 +258,7 @@ export function useGlacierZoom(
    */
   const zoomToGlacierExtent = () => {
     if (!map.value || !selectedGlacier.value) {
-      console.warn(
-        '[GlacierZoom] Cannot zoom: map or glacier not available'
-      );
+      console.warn('[GlacierZoom] Cannot zoom: map or glacier not available');
       return;
     }
 

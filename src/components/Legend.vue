@@ -63,7 +63,10 @@
         </Transition>
       </div>
       <div
-        v-if="currentVisualization === 'area-change' || currentVisualization === 'volume-change'"
+        v-if="
+          currentVisualization === 'area-change' ||
+          currentVisualization === 'volume-change'
+        "
         class="legend-gradient-content"
       >
         <div class="legend-since-label">since 2020</div>

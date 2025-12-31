@@ -364,7 +364,9 @@ export function useLayers(
     }
 
     if (!getFillColor || !getFillOpacity) {
-      console.warn('[useLayers] Color functions not set, skipping layer creation');
+      console.warn(
+        '[useLayers] Color functions not set, skipping layer creation'
+      );
       return;
     }
     const baseOpacity = getFillOpacity();

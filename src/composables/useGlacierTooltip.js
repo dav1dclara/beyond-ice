@@ -127,4 +127,3 @@ export function useGlacierTooltip(mapboxCanvas, tooltipElement, map) {
     TOOLTIP_DELAY,
   };
 }
-
