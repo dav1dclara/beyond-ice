@@ -1,4 +1,6 @@
 import { ref } from 'vue';
+import { CSV_PATHS } from '../config/csvPaths.js';
+import { parseCSVLine } from '../utils/csvParser.js';
 
 /**
  * Composable for glacier search functionality
@@ -12,31 +14,10 @@ export function useGlacierSearch() {
   const showSearchResults = ref(false);
   const glacierSearchIndex = ref([]);
 
-  // Parse CSV line handling quoted values
-  const parseCSVLine = (line) => {
-    const values = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let j = 0; j < line.length; j++) {
-      const char = line[j];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        values.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim());
-    return values;
-  };
-
   // Load glacier search index from CSV
   const loadGlacierSearchIndex = async () => {
     try {
-      const csvUrl = `${import.meta.env.BASE_URL}data/glacier_index.csv`;
+      const csvUrl = CSV_PATHS.getGlacierIndexUrl();
       const response = await fetch(csvUrl);
 
       if (!response.ok) {
