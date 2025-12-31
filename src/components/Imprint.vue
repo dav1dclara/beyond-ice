@@ -1,51 +1,114 @@
 <template>
   <div>
-    <button
-      v-if="mapLoaded"
-      @click="showModal = true"
-      class="imprint-button"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button v-if="mapLoaded" @click="showModal = true" class="imprint-button">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <circle cx="12" cy="12" r="10"></circle>
         <path d="M12 16v-4"></path>
         <path d="M12 8h.01"></path>
       </svg>
     </button>
-    
-    <div v-if="showModal" class="imprint-modal-overlay" @click="showModal = false">
+
+    <div
+      v-if="showModal"
+      class="imprint-modal-overlay"
+      @click="showModal = false"
+    >
       <div class="imprint-modal" @click.stop>
         <button @click="showModal = false" class="imprint-modal-close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
         <div class="imprint-modal-header">
           <h1 class="imprint-modal-title">BEYOND ICE</h1>
-          <p class="imprint-modal-subtitle">Exploring the Future of Swiss Glaciers in 3D</p>
+          <p class="imprint-modal-subtitle">
+            Exploring the Future of Swiss Glaciers in 3D
+          </p>
         </div>
         <div class="imprint-modal-content">
           <div class="section">
             <h2>About</h2>
             <p class="section-text">
-              BEYOND ICE is an interactive cartographic web application that visualizes projected future extents of all Swiss glaciers until the end of the 21st century (2020–2100) under different climate scenarios. The main purpose of this project is to make scientifically derived glacier projections accessible to a broad audience through an intuitive, map-based interface.
+              BEYOND ICE is an interactive cartographic web application that
+              visualizes projected future extents of all Swiss glaciers until
+              the end of the 21st century (2020–2100) under different climate
+              scenarios. The main purpose of this project is to make
+              scientifically derived glacier projections accessible to a broad
+              audience through an intuitive, map-based interface.
             </p>
           </div>
 
           <div class="section">
             <h2>Attributions</h2>
             <p class="section-text">
-              Data: Glacier projections computed with GERM (<a href="https://doi.org/10.1002/hyp.7055" target="_blank" rel="noopener noreferrer">Huss et al., 2008</a>), provided by <a href="https://vaw.ethz.ch/" target="_blank" rel="noopener noreferrer">VAW</a>
+              Data: Glacier projections computed with GERM (<a
+                href="https://doi.org/10.1002/hyp.7055"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Huss et al., 2008</a
+              >), provided by
+              <a
+                href="https://vaw.ethz.ch/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >VAW</a
+              >
             </p>
             <p class="section-text">
-              Basemap: © <a href="https://www.mapbox.com/about/maps" target="_blank" rel="noopener noreferrer">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> © <a href="https://www.swisstopo.admin.ch/" target="_blank" rel="noopener noreferrer">Swisstopo</a>
+              Basemap: ©
+              <a
+                href="https://www.mapbox.com/about/maps"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Mapbox</a
+              >
+              ©
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noopener noreferrer"
+                >OpenStreetMap</a
+              >
+              ©
+              <a
+                href="https://www.swisstopo.admin.ch/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Swisstopo</a
+              >
             </p>
           </div>
 
           <div class="section">
             <h2>Credits</h2>
             <p class="section-text">
-              This application was created by David Clara for the course <a href="https://karto.ethz.ch/en/education/courses/master/application-development-cartography.html" target="_blank" rel="noopener noreferrer">Application Development in Cartography</a> at ETH Zurich during the winter semester 2025/2026.
+              This application was created by David Clara for the course
+              <a
+                href="https://karto.ethz.ch/en/education/courses/master/application-development-cartography.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Application Development in Cartography</a
+              >
+              at ETH Zurich during the winter semester 2025/2026.
             </p>
           </div>
         </div>
@@ -55,16 +118,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref } from 'vue';
 
 defineProps({
   mapLoaded: {
     type: Boolean,
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-const showModal = ref(false)
+const showModal = ref(false);
 </script>
 
 <style scoped>
@@ -221,14 +284,13 @@ const showModal = ref(false)
 }
 
 .section a {
-  color: #3B82F6;
+  color: #3b82f6;
   text-decoration: none;
   transition: all 0.2s;
 }
 
 .section a:hover {
-  color: #2563EB;
+  color: #2563eb;
   text-decoration: underline;
 }
 </style>
-
