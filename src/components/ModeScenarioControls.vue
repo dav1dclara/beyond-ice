@@ -1,11 +1,7 @@
-<!-- TODO:
- - Adapt the tooltip for the scenarios
--->
-
 <template>
   <div class="mode-scenario-control-panel">
     <div class="visualization-mode-section">
-      <span 
+      <span
         class="visualization-mode-label"
         @mouseenter="showTooltip"
         @mouseleave="hideTooltip"
@@ -15,27 +11,53 @@
           <div v-if="tooltipVisible" class="tooltip tooltip-left-aligned">
             <p>Choose how to visualize glacier extents:</p>
             <ul>
-              <li><strong>Temporal Evolution</strong>: View the evolution of glacier extents over time for a single scenario</li>
-              <li><strong>Multi-year Overlay</strong>: Overlay glacier extents every 10 years for a single scenario (static)</li>
-              <li><strong>Scenario Comparison</strong>: Compare the evolution of glacier extents over time for two scenarios</li>
+              <li>
+                <strong>Temporal Evolution</strong>: View the evolution of
+                glacier extents over time for a single scenario
+              </li>
+              <li>
+                <strong>Multi-year Overlay</strong>: Overlay glacier extents
+                every 10 years for a single scenario (static)
+              </li>
+              <li>
+                <strong>Scenario Comparison</strong>: Compare the evolution of
+                glacier extents over time for two scenarios
+              </li>
             </ul>
           </div>
         </Transition>
       </span>
-      <div class="visualization-mode-dropdown" @click.stop="showDropdown = !showDropdown">
+      <div
+        class="visualization-mode-dropdown"
+        @click.stop="showDropdown = !showDropdown"
+      >
         <button class="visualization-mode-dropdown-button">
           <span>{{ modeLabels[selectedMode] }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showDropdown }">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            :class="{ rotated: showDropdown }"
+          >
             <polyline points="6 15 12 9 18 15"></polyline>
           </svg>
         </button>
         <Transition name="dropdown">
-          <div v-if="showDropdown" class="visualization-mode-dropdown-menu" @click.stop>
+          <div
+            v-if="showDropdown"
+            class="visualization-mode-dropdown-menu"
+            @click.stop
+          >
             <button
               v-for="mode in modes"
               :key="mode"
               class="visualization-mode-dropdown-item"
-              :class="{ 'active': selectedMode === mode }"
+              :class="{ active: selectedMode === mode }"
               @click="selectMode(mode)"
             >
               {{ modeLabels[mode] }}
@@ -44,23 +66,59 @@
         </Transition>
       </div>
     </div>
-    <div v-if="selectedMode === 'default' || selectedMode === 'overlay' || selectedMode === 'comparison'" class="vertical-divider"></div>
-    <div v-if="selectedMode === 'default' || selectedMode === 'overlay'" class="scenario-section">
-      <span 
+    <div
+      v-if="
+        selectedMode === 'default' ||
+        selectedMode === 'overlay' ||
+        selectedMode === 'comparison'
+      "
+      class="vertical-divider"
+    ></div>
+    <div
+      v-if="selectedMode === 'default' || selectedMode === 'overlay'"
+      class="scenario-section"
+    >
+      <span
         class="scenario-label"
         @mouseenter="showScenarioTooltip"
         @mouseleave="hideScenarioTooltip"
       >
         scenario
         <Transition name="tooltip">
-          <div v-if="scenarioTooltipVisible" class="tooltip">
+          <div
+            v-if="scenarioTooltipVisible"
+            class="tooltip"
+            @mouseenter="showScenarioTooltip"
+            @mouseleave="hideScenarioTooltip"
+          >
             <p>Select a Shared Socioeconomic Pathway (SSP) scenario:</p>
             <ul>
-              <li><strong>SSP1-2.6</strong>: Low emissions, sustainable development</li>
-              <li><strong>SSP2-4.5</strong>: Intermediate emissions, moderate development</li>
-              <li><strong>SSP3-7.0</strong>: High emissions, regional rivalry</li>
-              <li><strong>SSP5-8.5</strong>: Very high emissions, fossil-fueled development</li>
+              <li>
+                <strong>SSP1-2.6</strong>: Sustainability<br />(Low challenges
+                to mitigation and adaptation)
+              </li>
+              <li>
+                <strong>SSP2-4.5</strong>: Middle of the Road<br />(Medium
+                challenges to mitigation and adaptation)
+              </li>
+              <li>
+                <strong>SSP3-7.0</strong>: Regional Rivalry<br />(High
+                challenges to mitigation and adaptation)
+              </li>
+              <li>
+                <strong>SSP5-8.5</strong>: Fossil-fueled Development<br />(High
+                challenges to mitigation, low challenges to adaptation)
+              </li>
             </ul>
+            <p class="tooltip-link">
+              <a
+                href="https://www.dkrz.de/en/communication/climate-simulations/cmip6-en/the-ssp-scenarios"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="tooltip-link-anchor"
+                >Learn more about SSP scenarios</a
+              >
+            </p>
           </div>
         </Transition>
       </span>
@@ -69,7 +127,7 @@
           v-for="scenario in scenarios"
           :key="scenario"
           class="scenario-toggle"
-          :class="{ 'active': selectedScenario === scenario }"
+          :class="{ active: selectedScenario === scenario }"
           @click="selectScenario(scenario)"
         >
           {{ scenario }}
@@ -79,23 +137,42 @@
     <div v-if="selectedMode === 'comparison'" class="comparison-scenarios">
       <div class="scenario-section">
         <span class="scenario-label no-tooltip">
-          <span class="scenario-color-indicator" style="background-color: rgba(59, 130, 246, 0.7);"></span>
+          <span
+            class="scenario-color-indicator scenario-color-reference"
+          ></span>
           reference
         </span>
-        <div class="scenario-dropdown" @click.stop="showReferenceDropdown = !showReferenceDropdown">
+        <div
+          class="scenario-dropdown"
+          @click.stop="showReferenceDropdown = !showReferenceDropdown"
+        >
           <button class="scenario-dropdown-button">
             <span>{{ selectedReferenceScenario }}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showReferenceDropdown }">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              :class="{ rotated: showReferenceDropdown }"
+            >
               <polyline points="6 15 12 9 18 15"></polyline>
             </svg>
           </button>
           <Transition name="dropdown">
-            <div v-if="showReferenceDropdown" class="scenario-dropdown-menu" @click.stop>
+            <div
+              v-if="showReferenceDropdown"
+              class="scenario-dropdown-menu"
+              @click.stop
+            >
               <button
                 v-for="scenario in scenarios"
                 :key="`ref-${scenario}`"
                 class="scenario-dropdown-item"
-                :class="{ 'active': selectedReferenceScenario === scenario }"
+                :class="{ active: selectedReferenceScenario === scenario }"
                 @click="selectReferenceScenario(scenario)"
               >
                 {{ scenario }}
@@ -106,23 +183,42 @@
       </div>
       <div class="scenario-section">
         <span class="scenario-label no-tooltip">
-          <span class="scenario-color-indicator" style="background-color: rgba(249, 115, 22, 0.7);"></span>
+          <span
+            class="scenario-color-indicator scenario-color-comparison"
+          ></span>
           comparison
         </span>
-        <div class="scenario-dropdown" @click.stop="showComparisonDropdown = !showComparisonDropdown">
+        <div
+          class="scenario-dropdown"
+          @click.stop="showComparisonDropdown = !showComparisonDropdown"
+        >
           <button class="scenario-dropdown-button">
             <span>{{ selectedComparisonScenario }}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showComparisonDropdown }">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              :class="{ rotated: showComparisonDropdown }"
+            >
               <polyline points="6 15 12 9 18 15"></polyline>
             </svg>
           </button>
           <Transition name="dropdown">
-            <div v-if="showComparisonDropdown" class="scenario-dropdown-menu" @click.stop>
+            <div
+              v-if="showComparisonDropdown"
+              class="scenario-dropdown-menu"
+              @click.stop
+            >
               <button
                 v-for="scenario in scenarios"
                 :key="`comp-${scenario}`"
                 class="scenario-dropdown-item"
-                :class="{ 'active': selectedComparisonScenario === scenario }"
+                :class="{ active: selectedComparisonScenario === scenario }"
                 @click="selectComparisonScenario(scenario)"
               >
                 {{ scenario }}
@@ -136,133 +232,143 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { SCENARIO_CONFIG } from '../config/scenarios.js';
 
 const props = defineProps({
   selectedProjection: {
     type: String,
-    default: null
-  }
-})
+    default: null,
+  },
+});
 
-const emit = defineEmits(['mode-change', 'scenario-change', 'reference-scenario-change', 'comparison-scenario-change'])
+const emit = defineEmits([
+  'mode-change',
+  'scenario-change',
+  'reference-scenario-change',
+  'comparison-scenario-change',
+]);
 
-const modes = ['default', 'overlay', 'comparison']
+const modes = ['default', 'overlay', 'comparison'];
 const modeLabels = {
   default: 'Temporal Evolution',
   overlay: 'Multi-year Overlay',
-  comparison: 'Scenario Comparison'
-}
-const scenarios = ['SSP1-2.6', 'SSP2-4.5', 'SSP3-7.0', 'SSP5-8.5']
-const selectedMode = ref('default')
-const selectedScenario = ref('SSP2-4.5')
-const selectedReferenceScenario = ref('SSP2-4.5')
-const selectedComparisonScenario = ref('SSP5-8.5')
-const showDropdown = ref(false)
-const showReferenceDropdown = ref(false)
-const showComparisonDropdown = ref(false)
-const tooltipVisible = ref(false)
-let tooltipTimeout = null
-const scenarioTooltipVisible = ref(false)
-let scenarioTooltipTimeout = null
-
-// Sync selectedScenario with prop
-watch(() => props.selectedProjection, (newProjection) => {
-  if (newProjection && scenarios.includes(newProjection)) {
-    selectedScenario.value = newProjection
-  }
-}, { immediate: true })
+  comparison: 'Scenario Comparison',
+};
+const scenarios = ['SSP1-2.6', 'SSP2-4.5', 'SSP3-7.0', 'SSP5-8.5'];
+const selectedMode = ref('default');
+const selectedScenario = ref(SCENARIO_CONFIG.DEFAULT_SCENARIO);
+const selectedReferenceScenario = ref(
+  SCENARIO_CONFIG.DEFAULT_REFERENCE_SCENARIO
+);
+const selectedComparisonScenario = ref(
+  SCENARIO_CONFIG.DEFAULT_COMPARISON_SCENARIO
+);
+const showDropdown = ref(false);
+const showReferenceDropdown = ref(false);
+const showComparisonDropdown = ref(false);
+const tooltipVisible = ref(false);
+let tooltipTimeout = null;
+const scenarioTooltipVisible = ref(false);
+let scenarioTooltipTimeout = null;
+watch(
+  () => props.selectedProjection,
+  (newProjection) => {
+    if (newProjection && scenarios.includes(newProjection)) {
+      selectedScenario.value = newProjection;
+    }
+  },
+  { immediate: true }
+);
 
 const selectMode = (mode) => {
-  selectedMode.value = mode
-  showDropdown.value = false
-  emit('mode-change', mode)
-}
+  selectedMode.value = mode;
+  showDropdown.value = false;
+  emit('mode-change', mode);
+};
 
 const showTooltip = () => {
-  // Clear any existing timeout
   if (tooltipTimeout) {
-    clearTimeout(tooltipTimeout)
+    clearTimeout(tooltipTimeout);
   }
-  // Show tooltip after 500ms delay
   tooltipTimeout = setTimeout(() => {
-    tooltipVisible.value = true
-  }, 500)
-}
+    tooltipVisible.value = true;
+  }, 750);
+};
 
 const hideTooltip = () => {
-  // Clear timeout if user moves mouse away before delay
   if (tooltipTimeout) {
-    clearTimeout(tooltipTimeout)
-    tooltipTimeout = null
+    clearTimeout(tooltipTimeout);
+    tooltipTimeout = null;
   }
-  tooltipVisible.value = false
-}
+  tooltipVisible.value = false;
+};
 
 const showScenarioTooltip = () => {
-  // Clear any existing timeout
   if (scenarioTooltipTimeout) {
-    clearTimeout(scenarioTooltipTimeout)
+    clearTimeout(scenarioTooltipTimeout);
   }
-  // Show tooltip after 500ms delay
+  if (scenarioTooltipVisible.value) {
+    scenarioTooltipTimeout = null;
+    return;
+  }
   scenarioTooltipTimeout = setTimeout(() => {
-    scenarioTooltipVisible.value = true
-  }, 500)
-}
+    scenarioTooltipVisible.value = true;
+    scenarioTooltipTimeout = null;
+  }, 750);
+};
 
 const hideScenarioTooltip = () => {
-  // Clear timeout if user moves mouse away before delay
   if (scenarioTooltipTimeout) {
-    clearTimeout(scenarioTooltipTimeout)
-    scenarioTooltipTimeout = null
+    clearTimeout(scenarioTooltipTimeout);
   }
-  scenarioTooltipVisible.value = false
-}
-
-// Close dropdown when clicking outside
+  scenarioTooltipTimeout = setTimeout(() => {
+    scenarioTooltipVisible.value = false;
+    scenarioTooltipTimeout = null;
+  }, 100);
+};
 const handleClickOutside = (event) => {
   if (!event.target.closest('.visualization-mode-dropdown')) {
-    showDropdown.value = false
+    showDropdown.value = false;
   }
   if (!event.target.closest('.scenario-dropdown')) {
-    showReferenceDropdown.value = false
-    showComparisonDropdown.value = false
+    showReferenceDropdown.value = false;
+    showComparisonDropdown.value = false;
   }
-}
+};
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
+  document.addEventListener('click', handleClickOutside);
+});
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', handleClickOutside);
   if (tooltipTimeout) {
-    clearTimeout(tooltipTimeout)
+    clearTimeout(tooltipTimeout);
   }
   if (scenarioTooltipTimeout) {
-    clearTimeout(scenarioTooltipTimeout)
+    clearTimeout(scenarioTooltipTimeout);
   }
-})
+});
 
 const selectScenario = (scenario) => {
-  // Only emit if not already on this scenario
   if (selectedScenario.value !== scenario) {
-    selectedScenario.value = scenario
-    emit('scenario-change', scenario)
+    selectedScenario.value = scenario;
+    emit('scenario-change', scenario);
   }
-}
+};
 
 const selectReferenceScenario = (scenario) => {
-  selectedReferenceScenario.value = scenario
-  showReferenceDropdown.value = false
-  emit('reference-scenario-change', scenario)
-}
+  selectedReferenceScenario.value = scenario;
+  showReferenceDropdown.value = false;
+  emit('reference-scenario-change', scenario);
+};
 
 const selectComparisonScenario = (scenario) => {
-  selectedComparisonScenario.value = scenario
-  showComparisonDropdown.value = false
-  emit('comparison-scenario-change', scenario)
-}
+  selectedComparisonScenario.value = scenario;
+  showComparisonDropdown.value = false;
+  emit('comparison-scenario-change', scenario);
+};
 </script>
 
 <style scoped>
@@ -271,22 +377,17 @@ const selectComparisonScenario = (scenario) => {
   left: 10px;
   bottom: 100%;
   margin-bottom: 0;
-  padding-top: 6px;
-  padding-bottom: 0px;
-  padding-left: 6px;
-  padding-right: 6px;
-  background: #FFFFFF;
+  padding: 6px 6px 0;
+  background: white;
   border: 1px solid #e5e5e5;
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
   border-bottom: none;
   font-size: 12px;
   font-weight: 400;
-  color: #666666;
+  color: #666;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
-  clip-path: inset(-200px -10px 0 -10px);
+  clip-path: inset(-500px -10px 0 -10px);
   transition: all 0.2s;
   z-index: 1001;
   font-family: inherit;
@@ -321,7 +422,7 @@ const selectComparisonScenario = (scenario) => {
 .visualization-mode-label {
   font-size: 10px;
   font-weight: 500;
-  color: #888888;
+  color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -332,7 +433,7 @@ const selectComparisonScenario = (scenario) => {
 .scenario-label {
   font-size: 10px;
   font-weight: 500;
-  color: #888888;
+  color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -353,7 +454,7 @@ const selectComparisonScenario = (scenario) => {
   left: 50%;
   transform: translateX(-50%);
   background: #e8e8e8;
-  color: #333333;
+  color: #333;
   padding: 6px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -362,11 +463,11 @@ const selectComparisonScenario = (scenario) => {
   text-transform: none;
   letter-spacing: normal;
   white-space: normal;
-  min-width: 350px;
+  min-width: 370px;
   max-width: 400px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 1004;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .tooltip::after {
@@ -409,10 +510,22 @@ const selectComparisonScenario = (scenario) => {
   font-weight: 600;
 }
 
+.tooltip-link {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.tooltip-link-anchor {
+  color: #0066cc;
+  text-decoration: underline;
+}
+
 /* Tooltip transitions */
 .tooltip-enter-active,
 .tooltip-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .tooltip-enter-from,
@@ -437,7 +550,6 @@ const selectComparisonScenario = (scenario) => {
   transform: translateY(0);
 }
 
-/* Visualization mode dropdown */
 .visualization-mode-dropdown {
   position: relative;
   z-index: 1003;
@@ -453,13 +565,13 @@ const selectComparisonScenario = (scenario) => {
   padding: 8px 12px;
   width: 100%;
   min-width: 140px;
-  background: #FFFFFF;
+  background: white;
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: #333333;
+  color: #333;
   transition: all 0.2s;
   font-family: inherit;
   box-sizing: border-box;
@@ -468,7 +580,7 @@ const selectComparisonScenario = (scenario) => {
 .visualization-mode-dropdown-button:hover {
   background: #f5f5f5;
   border-color: #d0d0d0;
-  color: #333333;
+  color: #333;
 }
 
 .visualization-mode-dropdown-button svg {
@@ -504,18 +616,18 @@ const selectComparisonScenario = (scenario) => {
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: #666666;
+  color: #666;
   transition: all 0.2s;
   font-family: inherit;
 }
 
 .visualization-mode-dropdown-item:hover {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
 }
 
 .visualization-mode-dropdown-item.active {
-  color: #333333;
+  color: #333;
   font-weight: 600;
 }
 
@@ -543,7 +655,7 @@ const selectComparisonScenario = (scenario) => {
   cursor: pointer;
   font-size: 12px;
   font-weight: 400;
-  color: #666666;
+  color: #666;
   transition: all 0.2s;
   font-family: inherit;
   text-align: center;
@@ -553,14 +665,13 @@ const selectComparisonScenario = (scenario) => {
 
 .scenario-toggle:hover {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
 }
 
 .scenario-toggle.active {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
   font-weight: 600;
-  /* border-color: #555555; */
 }
 
 .scenario-color-indicator {
@@ -568,6 +679,14 @@ const selectComparisonScenario = (scenario) => {
   height: 12px;
   border-radius: 2px;
   flex-shrink: 0;
+}
+
+.scenario-color-reference {
+  background-color: rgba(59, 130, 246, 0.7);
+}
+
+.scenario-color-comparison {
+  background-color: rgba(249, 115, 22, 0.7);
 }
 
 .scenario-dropdown {
@@ -583,13 +702,13 @@ const selectComparisonScenario = (scenario) => {
   gap: 8px;
   padding: 8px 12px;
   min-width: 120px;
-  background: #FFFFFF;
+  background: white;
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: #333333;
+  color: #333;
   transition: all 0.2s;
   font-family: inherit;
   box-sizing: border-box;
@@ -598,7 +717,7 @@ const selectComparisonScenario = (scenario) => {
 .scenario-dropdown-button:hover {
   background: #f5f5f5;
   border-color: #d0d0d0;
-  color: #333333;
+  color: #333;
 }
 
 .scenario-dropdown-button svg {
@@ -634,18 +753,18 @@ const selectComparisonScenario = (scenario) => {
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: #666666;
+  color: #666;
   transition: all 0.2s;
   font-family: inherit;
 }
 
 .scenario-dropdown-item:hover {
   background: #f5f5f5;
-  color: #333333;
+  color: #333;
 }
 
 .scenario-dropdown-item.active {
-  color: #333333;
+  color: #333;
   font-weight: 600;
 }
 
@@ -657,14 +776,12 @@ const selectComparisonScenario = (scenario) => {
   flex-shrink: 0;
 }
 
-
-
-
-
-/* Dropdown transitions */
+.dropdown-enter-active,
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .dropdown-enter-from,
