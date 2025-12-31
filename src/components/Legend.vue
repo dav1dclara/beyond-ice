@@ -320,11 +320,11 @@ const props = defineProps({
   },
   referenceScenario: {
     type: String,
-    default: 'SSP2-4.5',
+    default: SCENARIO_CONFIG.DEFAULT_REFERENCE_SCENARIO,
   },
   comparisonScenario: {
     type: String,
-    default: 'SSP5-8.5',
+    default: SCENARIO_CONFIG.DEFAULT_COMPARISON_SCENARIO,
   },
   visibleScenarios: {
     type: Set,
