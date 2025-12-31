@@ -5,15 +5,13 @@
         <h1 class="title">BEYOND ICE</h1>
         <p class="subtitle">Exploring the Future of Swiss Glaciers in 3D</p>
       </div>
-      <button @click="$emit('load')" class="load-button">
-        Load Map
-      </button>
+      <button @click="$emit('load')" class="load-button">Load Map</button>
     </div>
   </div>
 </template>
 
 <script setup>
-defineEmits(['load'])
+defineEmits(['load']);
 </script>
 
 <style scoped>
@@ -26,7 +24,7 @@ defineEmits(['load'])
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #FFFFFF;
+  background: #ffffff;
   z-index: 2000;
 }
 
@@ -50,7 +48,7 @@ defineEmits(['load'])
   font-weight: 700;
   letter-spacing: 6px;
   margin: 0;
-  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #3b82f6 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -61,7 +59,8 @@ defineEmits(['load'])
 }
 
 @keyframes shimmer {
-  0%, 100% {
+  0%,
+  100% {
     background-position: 0% center;
   }
   50% {
@@ -81,8 +80,8 @@ defineEmits(['load'])
   padding: 12px 32px;
   font-size: 16px;
   font-weight: 600;
-  color: #FFFFFF;
-  background: #3B82F6;
+  color: #ffffff;
+  background: #3b82f6;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -92,12 +91,7 @@ defineEmits(['load'])
 }
 
 .load-button:hover {
-  background: #2563EB;
-  transform: translateY(-2px);
+  background: #2563eb;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-
-.load-button:active {
-  transform: translateY(0);
 }
 </style>

@@ -1,17 +1,29 @@
 <template>
-  <div class="time-slider-group">
+  <div class="time-slider-section">
     <button
       @click="togglePlay"
       class="play-button"
-      :class="{ 'disabled': disabled }"
+      :class="{ disabled: disabled }"
       :disabled="disabled"
       :title="isPlaying ? 'Pause animation' : 'Play animation'"
     >
-      <svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8 5v14l11-7z"/>
+      <svg
+        v-if="!isPlaying"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+      >
+        <path d="M8 5v14l11-7z" />
       </svg>
-      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+      <svg
+        v-else
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+      >
+        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
       </svg>
     </button>
     <div class="timeslider-container">
@@ -23,17 +35,17 @@
         :value="currentYear"
         @input="handleYearChange"
         class="time-slider"
-        :class="{ 'disabled': disabled }"
+        :class="{ disabled: disabled }"
         :disabled="disabled"
       />
-      <div 
+      <div
         class="thumb-year-label"
         :style="getThumbYearStyle()"
-        :class="{ 'disabled': disabled }"
+        :class="{ disabled: disabled }"
       >
         {{ currentYear }}
       </div>
-      <div class="year-labels" :class="{ 'disabled': disabled }">
+      <div class="year-labels" :class="{ disabled: disabled }">
         <span
           v-for="year in yearLabels"
           :key="year"
@@ -47,163 +59,141 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   currentYear: {
     type: Number,
-    required: true
+    required: true,
   },
   minYear: {
     type: Number,
-    required: true
+    required: true,
   },
   maxYear: {
     type: Number,
-    required: true
+    required: true,
   },
   step: {
     type: Number,
-    default: 2
+    default: 2,
   },
   disabled: {
     type: Boolean,
-    default: false
-  }
-})
+    default: false,
+  },
+});
 
-const emit = defineEmits(['year-change'])
+const emit = defineEmits(['year-change']);
 
-// Play animation state
-const isPlaying = ref(false)
-let playInterval = null
-const playSpeed = 500 // milliseconds per year step
+const isPlaying = ref(false);
+let playInterval = null;
+const playSpeed = 500; // milliseconds per year step
 
 const handleYearChange = (event) => {
-  const year = parseInt(event.target.value)
+  const year = parseInt(event.target.value);
   // If user manually changes year while playing, stop animation
   if (isPlaying.value) {
-    stopAnimation()
+    stopAnimation();
   }
-  emit('year-change', year)
-}
+  emit('year-change', year);
+};
 
-// Toggle play/pause animation
 const togglePlay = () => {
-  if (props.disabled) return
+  if (props.disabled) return;
   if (isPlaying.value) {
-    stopAnimation()
+    stopAnimation();
   } else {
-    startAnimation()
+    startAnimation();
   }
-}
+};
 
-// Start the animation
 const startAnimation = () => {
-  if (isPlaying.value) return
-  
-  isPlaying.value = true
-  let currentYearValue = props.currentYear
-  
+  if (isPlaying.value) return;
+
+  isPlaying.value = true;
+  let currentYearValue = props.currentYear;
+
   playInterval = setInterval(() => {
-    // Calculate next year
-    const nextYear = currentYearValue + props.step
-    
-    // If we've reached the max year, stop
+    const nextYear = currentYearValue + props.step;
+
     if (nextYear > props.maxYear) {
-      currentYearValue = props.maxYear
-      stopAnimation()
-      return
+      currentYearValue = props.maxYear;
+      stopAnimation();
+      return;
     }
-    
-    // Move to next year
-    currentYearValue = nextYear
-    
-    // Emit the year change
-    emit('year-change', currentYearValue)
-  }, playSpeed)
-}
 
-// Stop the animation
+    currentYearValue = nextYear;
+
+    emit('year-change', currentYearValue);
+  }, playSpeed);
+};
+
 const stopAnimation = () => {
-  isPlaying.value = false
+  isPlaying.value = false;
   if (playInterval) {
-    clearInterval(playInterval)
-    playInterval = null
+    clearInterval(playInterval);
+    playInterval = null;
   }
-}
+};
 
-// Watch for reaching max year and stop animation
-watch(() => props.currentYear, (newYear) => {
-  // If we've reached the max year while playing, stop
-  if (newYear >= props.maxYear && isPlaying.value) {
-    stopAnimation()
+watch(
+  () => props.currentYear,
+  (newYear) => {
+    if (newYear >= props.maxYear && isPlaying.value) {
+      stopAnimation();
+    }
   }
-})
+);
 
-// Cleanup on unmount
 onBeforeUnmount(() => {
-  stopAnimation()
-})
+  stopAnimation();
+});
 
 const yearLabels = computed(() => {
-  const labels = []
-  const startYear = Math.ceil(props.minYear / 10) * 10
-  const endYear = Math.floor(props.maxYear / 10) * 10
-  
+  const labels = [];
+  const startYear = Math.ceil(props.minYear / 10) * 10;
+  const endYear = Math.floor(props.maxYear / 10) * 10;
+
   for (let year = startYear; year <= endYear; year += 10) {
-    labels.push(year)
+    labels.push(year);
   }
-  
-  // Always include min and max years if they're not already included
+
   if (labels[0] !== props.minYear) {
-    labels.unshift(props.minYear)
+    labels.unshift(props.minYear);
   }
   if (labels[labels.length - 1] !== props.maxYear) {
-    labels.push(props.maxYear)
+    labels.push(props.maxYear);
   }
-  
-  return labels
-})
+
+  return labels;
+});
 
 const getYearLabelStyle = (year) => {
-  const min = props.minYear
-  const max = props.maxYear
-  const percentage = ((year - min) / (max - min)) * 100
-  
+  const min = props.minYear;
+  const max = props.maxYear;
+  const percentage = ((year - min) / (max - min)) * 100;
+
   return {
     position: 'absolute',
     left: `${percentage}%`,
-    transform: 'translateX(-50%)'
-  }
-}
+    transform: 'translateX(-50%)',
+  };
+};
 
 const getThumbYearStyle = () => {
-  const min = props.minYear
-  const max = props.maxYear
-  const percentage = ((props.currentYear - min) / (max - min)) * 100
-  
-  // The slider input has:
-  // - margin-left: 4px
-  // - width: calc(100% - 8px)
-  // - thumb width: 16px (so thumb radius = 8px)
-  // 
-  // The browser constrains the thumb at edges:
-  // - At 0%: thumb left edge = track start (4px), so thumb center = 4px + 8px = 12px
-  // - At 100%: thumb right edge = track end (100% - 4px), so thumb center = 100% - 4px - 8px = 100% - 12px
-  // - In between: thumb center interpolates linearly
-  //
-  // Formula: start + percentage * (end - start) / 100
-  // = 12px + percentage * ((100% - 12px) - 12px) / 100
-  // = 12px + percentage% - (percentage * 24px / 100)
+  const min = props.minYear;
+  const max = props.maxYear;
+  const percentage = ((props.currentYear - min) / (max - min)) * 100;
+
   return {
-    left: `calc(12px + ${percentage}% - ${percentage * 24 / 100}px)`
-  }
-}
+    left: `calc(12px + ${percentage}% - ${(percentage * 24) / 100}px)`,
+  };
+};
 </script>
 
 <style scoped>
-.time-slider-group {
+.time-slider-section {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -220,7 +210,9 @@ const getThumbYearStyle = () => {
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
   color: #333;
   padding: 0;
   font-size: 14px;
@@ -253,8 +245,6 @@ const getThumbYearStyle = () => {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  --thumb-width: 16px;
-  --thumb-offset: calc(var(--thumb-width) / 2);
 }
 
 .time-slider {
@@ -285,7 +275,6 @@ const getThumbYearStyle = () => {
   background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
-  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); */
 }
 
 .time-slider::-moz-range-thumb {
@@ -296,7 +285,6 @@ const getThumbYearStyle = () => {
   background: #d0d0d0;
   border: 2px solid white;
   cursor: pointer;
-  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); */
 }
 
 .thumb-year-label {
