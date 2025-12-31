@@ -59,7 +59,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { computed } from 'vue';
+import { useAnimation } from '../composables/useAnimation.js';
 
 const props = defineProps({
   currentYear: {
@@ -86,9 +87,16 @@ const props = defineProps({
 
 const emit = defineEmits(['year-change']);
 
-const isPlaying = ref(false);
-let playInterval = null;
-const playSpeed = 500; // milliseconds per year step
+// Animation composable
+const { isPlaying, togglePlay, stopAnimation } = useAnimation(
+  computed(() => props.currentYear),
+  props.minYear,
+  props.maxYear,
+  props.step,
+  500, // milliseconds per year step
+  (year) => emit('year-change', year),
+  computed(() => props.disabled)
+);
 
 const handleYearChange = (event) => {
   const year = parseInt(event.target.value);
@@ -98,57 +106,6 @@ const handleYearChange = (event) => {
   }
   emit('year-change', year);
 };
-
-const togglePlay = () => {
-  if (props.disabled) return;
-  if (isPlaying.value) {
-    stopAnimation();
-  } else {
-    startAnimation();
-  }
-};
-
-const startAnimation = () => {
-  if (isPlaying.value) return;
-
-  isPlaying.value = true;
-  let currentYearValue = props.currentYear;
-
-  playInterval = setInterval(() => {
-    const nextYear = currentYearValue + props.step;
-
-    if (nextYear > props.maxYear) {
-      currentYearValue = props.maxYear;
-      stopAnimation();
-      return;
-    }
-
-    currentYearValue = nextYear;
-
-    emit('year-change', currentYearValue);
-  }, playSpeed);
-};
-
-const stopAnimation = () => {
-  isPlaying.value = false;
-  if (playInterval) {
-    clearInterval(playInterval);
-    playInterval = null;
-  }
-};
-
-watch(
-  () => props.currentYear,
-  (newYear) => {
-    if (newYear >= props.maxYear && isPlaying.value) {
-      stopAnimation();
-    }
-  }
-);
-
-onBeforeUnmount(() => {
-  stopAnimation();
-});
 
 const yearLabels = computed(() => {
   const labels = [];
