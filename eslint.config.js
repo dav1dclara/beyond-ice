@@ -14,6 +14,9 @@ export default [
         ...globals.node,
       },
     },
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
   },
   eslintConfigPrettier,
 ];
