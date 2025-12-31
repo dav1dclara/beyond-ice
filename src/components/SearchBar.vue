@@ -1,29 +1,27 @@
 <template>
   <div v-if="mapLoaded" class="searchbar-container">
-    <!-- Zoom to glacier button - positioned behind search bar -->
     <Transition name="zoom-button-fade">
-      <div v-if="mapLoaded && selectedGlacier" class="zoom-to-glacier-dropdown">
+      <div v-if="selectedGlacier" class="zoom-to-glacier-dropdown">
         <button
           @click="$emit('zoom-to-glacier')"
           class="zoom-to-glacier-button"
           title="Zoom to glacier extent"
         >
-          <span>Zoom to glacier</span>
+          Zoom to glacier
         </button>
       </div>
     </Transition>
-    
-    <!-- Search bar wrapper - positioned in front -->
+
     <div class="searchbar-wrapper">
-      <svg 
-        class="search-icon" 
-        width="16" 
-        height="16" 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        stroke-width="2" 
-        stroke-linecap="round" 
+      <svg
+        class="search-icon"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
         stroke-linejoin="round"
       >
         <circle cx="11" cy="11" r="8"></circle>
@@ -45,26 +43,36 @@
         class="clear-button"
         title="Clear search"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
       </button>
       <div v-else class="clear-button-placeholder"></div>
-      
-      <!-- Search results dropdown -->
-      <div v-if="showSearchResults && searchResults.length > 0" class="search-results-dropdown">
-        <div
-          v-for="(result, index) in searchResults"
-          :key="result.id || index"
-          @click="$emit('select', result)"
-          class="search-result-item"
-        >
-          <span class="result-name">{{ result.name || 'Unnamed Glacier' }}</span>
-        </div>
-      </div>
-      <div v-else-if="showSearchResults && searchResults.length === 0" class="search-results-dropdown">
-        <div class="search-result-item no-results">
+
+      <div v-if="showSearchResults" class="search-results-dropdown">
+        <template v-if="searchResults.length > 0">
+          <div
+            v-for="(result, index) in searchResults"
+            :key="result.id || index"
+            @click="$emit('select', result)"
+            class="search-result-item"
+          >
+            <span class="result-name">{{
+              result.name || 'Unnamed Glacier'
+            }}</span>
+          </div>
+        </template>
+        <div v-else class="search-result-item no-results">
           No glaciers found
         </div>
       </div>
@@ -73,71 +81,83 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   modelValue: {
     type: String,
-    default: ''
+    default: '',
   },
   mapLoaded: {
     type: Boolean,
-    default: false
+    default: false,
   },
   showSearchResults: {
     type: Boolean,
-    default: false
+    default: false,
   },
   searchResults: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   selectedGlacier: {
     type: Object,
-    default: null
-  }
-})
+    default: null,
+  },
+});
 
-const emit = defineEmits(['search', 'clear', 'update:modelValue', 'select', 'zoom-to-glacier'])
+const emit = defineEmits([
+  'search',
+  'clear',
+  'update:modelValue',
+  'select',
+  'zoom-to-glacier',
+]);
 
-let searchTimeout = null
+const searchTimeout = ref(null);
 
 const handleInput = (e) => {
-  const value = e.target.value
-  emit('update:modelValue', value)
-  
-  // Clear previous timeout
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
+  const value = e.target.value;
+  emit('update:modelValue', value);
+
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
   }
-  
-  // Debounce search - trigger after 300ms of no typing
-  searchTimeout = setTimeout(() => {
-    emit('search', value)
-  }, 300)
-}
+
+  searchTimeout.value = setTimeout(() => {
+    emit('search', value);
+  }, 300);
+};
+
+onBeforeUnmount(() => {
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+  }
+});
 
 const handleSearch = () => {
-  emit('search', props.modelValue)
-}
+  emit('search', props.modelValue);
+};
 
 const handleClear = () => {
-  emit('update:modelValue', '')
-  emit('clear')
-}
+  emit('update:modelValue', '');
+  emit('clear');
+};
 </script>
 
 <style scoped>
-/* Container for both search bar and zoom button */
 .searchbar-container {
-  position: relative;
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
   display: inline-block;
   min-width: 250px;
   max-width: 400px;
   width: 320px;
 }
 
-/* Search bar wrapper - positioned in front */
 .searchbar-wrapper {
   position: relative;
   display: flex;
@@ -149,7 +169,9 @@ const handleClear = () => {
   padding: 8px 12px;
   min-height: 36px;
   box-sizing: border-box;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
   pointer-events: auto;
   z-index: 2;
 }
@@ -191,7 +213,9 @@ const handleClear = () => {
   border-radius: 4px;
   cursor: pointer;
   color: #444;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   padding: 0;
   margin-left: 8px;
 }
@@ -213,14 +237,13 @@ const handleClear = () => {
   margin-left: 8px;
 }
 
-/* Search Results Dropdown */
 .search-results-dropdown {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: #ffffff;
+  background: white;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -229,7 +252,6 @@ const handleClear = () => {
   z-index: 3;
 }
 
-/* Custom scrollbar styling */
 .search-results-dropdown::-webkit-scrollbar {
   width: 6px;
 }
@@ -247,7 +269,6 @@ const handleClear = () => {
   background: #e0e0e0;
 }
 
-/* Firefox scrollbar styling */
 .search-results-dropdown {
   scrollbar-width: thin;
   scrollbar-color: #f0f0f0 transparent;
@@ -283,7 +304,6 @@ const handleClear = () => {
   color: #333;
 }
 
-/* Zoom to glacier button - positioned behind search bar */
 .zoom-to-glacier-dropdown {
   position: absolute;
   top: 100%;
@@ -326,13 +346,16 @@ const handleClear = () => {
   color: currentColor;
 }
 
-/* Smooth fade transition for zoom button */
 .zoom-button-fade-enter-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 }
 
 .zoom-button-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .zoom-button-fade-enter-from {
