@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { SCENARIO_CONFIG } from '../config/scenarios.js';
+import { YEAR_CONFIG } from '../config/years.js';
 import { TILESET_IDS } from '../config/tilesets.js';
 
 /**
@@ -46,12 +46,13 @@ export function useLayers(
   const getStaticLayerId = (proj, year) => `glacier-layer-${proj}-${year}`;
   const getComparisonLayerId = (proj) => `glacier-layer-comparison-${proj}`;
   const getComparisonOutlineId = (proj) => `glacier-outline-comparison-${proj}`;
-  const getOverlayOutlineId = (proj) => `glacier-outline-overlay-${proj}-2020`;
+  const getOverlayOutlineId = (proj) =>
+    `glacier-outline-overlay-${proj}-${YEAR_CONFIG.MIN_YEAR}`;
 
   // Interpolate color from blue (2020) to orange (2100) for overlay mode
   const getYearColor = (year) => {
-    const minYear = SCENARIO_CONFIG.MIN_YEAR;
-    const maxYear = SCENARIO_CONFIG.MAX_YEAR;
+    const minYear = YEAR_CONFIG.MIN_YEAR;
+    const maxYear = YEAR_CONFIG.MAX_YEAR;
     const normalized = (year - minYear) / (maxYear - minYear);
 
     const blue = { r: 59, g: 130, b: 246 };
@@ -110,8 +111,8 @@ export function useLayers(
     if (!map.value) return;
 
     for (
-      let year = SCENARIO_CONFIG.MIN_YEAR;
-      year <= SCENARIO_CONFIG.MAX_YEAR;
+      let year = YEAR_CONFIG.MIN_YEAR;
+      year <= YEAR_CONFIG.MAX_YEAR;
       year += 10
     ) {
       const layerId = getStaticLayerId(proj, year);
@@ -261,8 +262,8 @@ export function useLayers(
 
       const decadeYears = [];
       for (
-        let y = SCENARIO_CONFIG.MIN_YEAR;
-        y <= SCENARIO_CONFIG.MAX_YEAR;
+        let y = YEAR_CONFIG.MIN_YEAR;
+        y <= YEAR_CONFIG.MAX_YEAR;
         y += 10
       ) {
         decadeYears.push(y);
@@ -298,7 +299,7 @@ export function useLayers(
       }
 
       const overlayOutlineId = getOverlayOutlineId(proj);
-      const minYear = SCENARIO_CONFIG.MIN_YEAR;
+      const minYear = YEAR_CONFIG.MIN_YEAR;
 
       if (visibleYears.value.has(minYear)) {
         map.value.addLayer(

@@ -82,7 +82,6 @@ export function useAnimation(
 
   return {
     isPlaying,
-    startAnimation,
     stopAnimation,
     togglePlay,
   };

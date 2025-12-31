@@ -1,5 +1,5 @@
 import { getBivariateColorExpression } from '../utils/bivariateColor.js';
-import { SCENARIO_CONFIG } from '../config/scenarios.js';
+import { YEAR_CONFIG } from '../config/years.js';
 
 /**
  * Composable for layer visualization and property updates
@@ -165,7 +165,7 @@ export function useLayerVisualization(
         : ['literal', false];
       map.value.setFilter(overlayOutlineId, filter);
 
-      const minYear = SCENARIO_CONFIG.MIN_YEAR;
+      const minYear = YEAR_CONFIG.MIN_YEAR;
       const yearColor = getYearColor(minYear);
       map.value.setPaintProperty(overlayOutlineId, 'line-color', yearColor);
     }
