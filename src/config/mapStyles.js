@@ -1,5 +1,6 @@
 // Light basemap style
-export const lightStyle = 'mapbox://styles/davidclara/cmjqbpgl6009001qy10ju7edu'
+export const lightStyle =
+  'mapbox://styles/davidclara/cmjqbpgl6009001qy10ju7edu';
 
 // Aerial imagery style
 export const swissImage = {
@@ -24,4 +25,4 @@ export const swissImage = {
       },
     },
   ],
-}
+};
