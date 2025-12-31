@@ -1,18 +1,36 @@
 <template>
-  <div class="legend-container" :class="{ 'legend-container-fixed-width': currentMode === 'default' }">
+  <div
+    class="legend-container"
+    :class="{ 'legend-container-fixed-width': currentMode === 'default' }"
+  >
     <div v-if="currentMode === 'default'" class="legend-dropdown-wrapper">
-      <span class="legend-visualization-label">
-        Visualization
-      </span>
-      <div class="legend-dropdown" @click.stop="showVisualizationDropdown = !showVisualizationDropdown">
+      <span class="legend-visualization-label"> Visualization </span>
+      <div
+        class="legend-dropdown"
+        @click.stop="showVisualizationDropdown = !showVisualizationDropdown"
+      >
         <button class="legend-dropdown-button">
           <span>{{ getVisualizationLabel(currentVisualization) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: showVisualizationDropdown }">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            :class="{ rotated: showVisualizationDropdown }"
+          >
             <polyline points="9 6 15 12 9 18"></polyline>
           </svg>
         </button>
         <Transition name="dropdown">
-          <div v-if="showVisualizationDropdown" class="legend-dropdown-menu" @click.stop>
+          <div
+            v-if="showVisualizationDropdown"
+            class="legend-dropdown-menu"
+            @click.stop
+          >
             <button
               @click.stop="handleVisualizationChange('uniform')"
               :class="{ active: currentVisualization === 'uniform' }"
@@ -44,14 +62,16 @@
           </div>
         </Transition>
       </div>
-      <!-- Area change legend -->
-      <div v-if="currentVisualization === 'area-change'" class="legend-gradient-content">
+      <div
+        v-if="currentVisualization === 'area-change' || currentVisualization === 'volume-change'"
+        class="legend-gradient-content"
+      >
         <div class="legend-since-label">since 2020</div>
         <div class="legend-gradient-bar-horizontal">
-          <div 
-            class="legend-gradient-horizontal" 
+          <div
+            class="legend-gradient-horizontal"
             :style="{
-              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
+              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`,
             }"
           ></div>
           <div class="legend-labels-horizontal">
@@ -60,30 +80,17 @@
           </div>
         </div>
       </div>
-      <!-- Volume change legend -->
-      <div v-if="currentVisualization === 'volume-change'" class="legend-gradient-content">
+      <div
+        v-if="currentVisualization === 'bivariate'"
+        class="legend-bivariate"
+        style="--canvas-size: 160px"
+      >
         <div class="legend-since-label">since 2020</div>
-        <div class="legend-gradient-bar-horizontal">
-          <div 
-            class="legend-gradient-horizontal" 
-            :style="{
-              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(249, 115, 22) 100%)`
-            }"
-          ></div>
-          <div class="legend-labels-horizontal">
-            <span class="legend-label-left">0%</span>
-            <span class="legend-label-right">-100%</span>
-          </div>
-        </div>
-      </div>
-      <!-- Bivariate legend -->
-      <div v-if="currentVisualization === 'bivariate'" class="legend-bivariate" style="--canvas-size: 160px;">
-        <div class="legend-since-label">since 2020</div>
-        <div style="display: flex; gap: 8px; align-items: flex-start;">
+        <div class="legend-bivariate-wrapper">
           <div>
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <canvas 
-                ref="bivariateCanvas" 
+            <div class="legend-bivariate-canvas-wrapper">
+              <canvas
+                ref="bivariateCanvas"
                 class="legend-bivariate-canvas"
                 :width="160"
                 :height="160"
@@ -117,23 +124,45 @@
           v-for="year in decadeYears"
           :key="year"
           class="overlay-legend-option"
-          :class="{ 'active': visibleYearsSet.has(year) }"
+          :class="{ active: visibleYearsSet.has(year) }"
         >
           <button
             @click="handleToggleYear(year)"
             class="overlay-legend-year-toggle-button"
             :title="visibleYearsSet.has(year) ? 'Hide' : 'Show'"
           >
-            <svg v-if="visibleYearsSet.has(year)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              v-if="visibleYearsSet.has(year)"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <svg
+              v-else
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+              ></path>
               <line x1="1" y1="1" x2="23" y2="23"></line>
             </svg>
           </button>
-          <div 
+          <div
             class="overlay-legend-year-color-box"
             :style="{ backgroundColor: getYearColor(year) }"
           ></div>
@@ -150,55 +179,106 @@
         </button>
       </div>
     </div>
-    <div v-else-if="currentMode === 'comparison'" class="comparison-legend-content">
+    <div
+      v-else-if="currentMode === 'comparison'"
+      class="comparison-legend-content"
+    >
       <div class="comparison-legend-options">
         <div
           class="comparison-legend-option"
-          :class="{ 'active': visibleScenariosSet.has('reference') }"
+          :class="{ active: visibleScenariosSet.has('reference') }"
         >
           <button
             @click="handleToggleScenario('reference')"
             class="comparison-legend-year-toggle-button"
             :title="visibleScenariosSet.has('reference') ? 'Hide' : 'Show'"
           >
-            <svg v-if="visibleScenariosSet.has('reference')" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              v-if="visibleScenariosSet.has('reference')"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <svg
+              v-else
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+              ></path>
               <line x1="1" y1="1" x2="23" y2="23"></line>
             </svg>
           </button>
-          <div 
+          <div
             class="comparison-legend-year-color-box"
             :style="{ backgroundColor: 'rgba(59, 130, 246, 0.6)' }"
           ></div>
-          <span class="comparison-legend-year-label">{{ referenceScenario }}</span>
+          <span class="comparison-legend-year-label">{{
+            referenceScenario
+          }}</span>
         </div>
         <div
           class="comparison-legend-option"
-          :class="{ 'active': visibleScenariosSet.has('comparison') }"
+          :class="{ active: visibleScenariosSet.has('comparison') }"
         >
           <button
             @click="handleToggleScenario('comparison')"
             class="comparison-legend-year-toggle-button"
             :title="visibleScenariosSet.has('comparison') ? 'Hide' : 'Show'"
           >
-            <svg v-if="visibleScenariosSet.has('comparison')" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              v-if="visibleScenariosSet.has('comparison')"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <svg
+              v-else
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+              ></path>
               <line x1="1" y1="1" x2="23" y2="23"></line>
             </svg>
           </button>
-          <div 
+          <div
             class="comparison-legend-year-color-box"
             :style="{ backgroundColor: 'rgba(249, 115, 22, 0.6)' }"
           ></div>
-          <span class="comparison-legend-year-label">{{ comparisonScenario }}</span>
+          <span class="comparison-legend-year-label">{{
+            comparisonScenario
+          }}</span>
         </div>
       </div>
     </div>
@@ -206,269 +286,235 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { PROJECTION_CONFIG } from '../config/projections.js'
-import { getBivariateColor } from '../utils/bivariateColor.js'
+import {
+  computed,
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+  watch,
+} from 'vue';
+import { SCENARIO_CONFIG } from '../config/scenarios.js';
+import { getBivariateColor } from '../utils/bivariateColor.js';
 
 const props = defineProps({
   currentMode: {
     type: String,
-    default: 'default'
+    default: 'default',
   },
   currentVisualization: {
     type: String,
-    default: 'uniform'
+    default: 'uniform',
   },
   visibleYears: {
     type: Set,
-    default: () => new Set()
+    default: () => new Set(),
   },
   minYear: {
     type: Number,
-    default: PROJECTION_CONFIG.MIN_YEAR
+    default: SCENARIO_CONFIG.MIN_YEAR,
   },
   maxYear: {
     type: Number,
-    default: PROJECTION_CONFIG.MAX_YEAR
+    default: SCENARIO_CONFIG.MAX_YEAR,
   },
   referenceScenario: {
     type: String,
-    default: 'SSP2-4.5'
+    default: 'SSP2-4.5',
   },
   comparisonScenario: {
     type: String,
-    default: 'SSP5-8.5'
+    default: 'SSP5-8.5',
   },
   visibleScenarios: {
     type: Set,
-    default: () => new Set(['reference', 'comparison'])
-  }
-})
+    default: () => new Set(['reference', 'comparison']),
+  },
+});
 
-const emit = defineEmits(['year-toggle', 'toggle-all-years', 'scenario-toggle', 'visualization-change'])
+const emit = defineEmits([
+  'year-toggle',
+  'toggle-all-years',
+  'scenario-toggle',
+  'visualization-change',
+]);
 
-const showVisualizationDropdown = ref(false)
-const bivariateCanvas = ref(null)
+const showVisualizationDropdown = ref(false);
+const bivariateCanvas = ref(null);
 
-// Overlay mode: decade years
 const decadeYears = computed(() => {
-  const years = []
+  const years = [];
   for (let y = props.minYear; y <= props.maxYear; y += 10) {
-    years.push(y)
+    years.push(y);
   }
-  return years
-})
+  return years;
+});
 
-// Convert Set prop to reactive Set
-const visibleYearsSet = computed(() => props.visibleYears)
+const visibleYearsSet = computed(() => props.visibleYears);
+const visibleScenariosSet = computed(() => props.visibleScenarios);
 
-// Convert Set prop to reactive Set for scenarios
-const visibleScenariosSet = computed(() => props.visibleScenarios)
-
-// Check if all years are visible
 const allYearsVisible = computed(() => {
-  return decadeYears.value.every(year => visibleYearsSet.value.has(year))
-})
+  return decadeYears.value.every((year) => visibleYearsSet.value.has(year));
+});
 
-// Get color for a specific year in overlay mode (gradient from minYear to maxYear)
 const getYearColor = (year) => {
-  const normalized = (year - props.minYear) / (props.maxYear - props.minYear)
-  
-  // Interpolate from blue (minYear) to orange (maxYear)
-  const blue = { r: 59, g: 130, b: 246 }  // #3B82F6
-  const orange = { r: 249, g: 115, b: 22 }    // #F97316
-  
-  const r = Math.round(blue.r + (orange.r - blue.r) * normalized)
-  const g = Math.round(blue.g + (orange.g - blue.g) * normalized)
-  const b = Math.round(blue.b + (orange.b - blue.b) * normalized)
-  
-  return `rgb(${r}, ${g}, ${b})`
-}
+  const normalized = (year - props.minYear) / (props.maxYear - props.minYear);
+  const blue = { r: 59, g: 130, b: 246 };
+  const orange = { r: 249, g: 115, b: 22 };
 
-// Handle year toggle
+  const r = Math.round(blue.r + (orange.r - blue.r) * normalized);
+  const g = Math.round(blue.g + (orange.g - blue.g) * normalized);
+  const b = Math.round(blue.b + (orange.b - blue.b) * normalized);
+
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
 const handleToggleYear = (year) => {
-  emit('year-toggle', year)
-}
+  emit('year-toggle', year);
+};
 
-// Handle toggle all years
 const handleToggleAllYears = () => {
-  emit('toggle-all-years')
-}
+  emit('toggle-all-years');
+};
 
-// Handle scenario toggle
 const handleToggleScenario = (scenario) => {
-  emit('scenario-toggle', scenario)
-}
+  emit('scenario-toggle', scenario);
+};
 
-const getModeLabel = (mode) => {
-  const labels = {
-    'default': 'Temporal Evolution',
-    'overlay': 'Multi-year Overlay',
-    'comparison': 'Scenario Comparison'
-  }
-  return labels[mode] || 'Temporal Evolution'
-}
-
-// Get visualization label for dropdown button
 const getVisualizationLabel = (mode) => {
   const labels = {
-    'uniform': 'Uniform',
+    uniform: 'Uniform',
     'area-change': 'Area Change',
     'volume-change': 'Volume Change',
-    'bivariate': 'Area & Volume Change'
-  }
-  return labels[mode] || 'Uniform'
-}
+    bivariate: 'Area & Volume Change',
+  };
+  return labels[mode] || 'Uniform';
+};
 
-// Function to draw continuous bivariate color field on canvas
-let isDrawing = false // Prevent concurrent draws
+let isDrawing = false;
 
 const drawBivariateLegend = () => {
   if (!bivariateCanvas.value) {
-    // Canvas not ready yet, try again after a short delay
     setTimeout(() => {
-      if (bivariateCanvas.value && props.currentVisualization === 'bivariate' && props.currentMode === 'default') {
-        drawBivariateLegend()
+      if (
+        bivariateCanvas.value &&
+        props.currentVisualization === 'bivariate' &&
+        props.currentMode === 'default'
+      ) {
+        drawBivariateLegend();
       }
-    }, 100)
-    return
+    }, 100);
+    return;
   }
-  
-  // Prevent concurrent draws
-  if (isDrawing) return
-  isDrawing = true
-  
+
+  if (isDrawing) return;
+  isDrawing = true;
+
   try {
-    const canvas = bivariateCanvas.value
-    const width = canvas.width
-    const height = canvas.height
-    
-    // Get fresh 2D context to ensure clean state
-    const ctx = canvas.getContext('2d', { willReadFrequently: false })
-    
-    // Disable image smoothing to prevent interpolation artifacts
-    ctx.imageSmoothingEnabled = false
-    
-    // Completely clear the canvas - fill with white then clear
-    ctx.fillStyle = '#FFFFFF'
-    ctx.fillRect(0, 0, width, height)
-    ctx.clearRect(0, 0, width, height)
-    
-    // Create fresh ImageData
-    const imageData = ctx.createImageData(width, height)
-    const data = imageData.data
-    
-    // Draw each pixel using the bivariate color function
-    // X-axis: area change (left = 0%, right = -100%)
-    // Y-axis: volume change (top = 0%, bottom = -100%)
-    // Canvas coordinates: y=0 is top, y=height-1 is bottom
-    // Skip first two rows (y=0, y=1) and first two columns (x=0, x=1) to avoid artifact lines
+    const canvas = bivariateCanvas.value;
+    const width = canvas.width;
+    const height = canvas.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
+
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+
     for (let y = 2; y < height; y++) {
       for (let x = 2; x < width; x++) {
-        // Convert pixel coordinates to percentage values
-        // Skip first two rows and columns to avoid edge artifacts
-        const areaChange = -((x + 0.5) / width) * 100
-        const volumeChange = -((y + 0.5) / height) * 100
-        
-        // Use the same color function as the map
-        const rgb = getBivariateColor(areaChange, volumeChange)
-        
-        // Set pixel data
-        const index = (y * width + x) * 4
-        data[index] = rgb.r     // Red
-        data[index + 1] = rgb.g // Green
-        data[index + 2] = rgb.b // Blue
-        data[index + 3] = 255    // Alpha (fully opaque)
+        const areaChange = -((x + 0.5) / width) * 100;
+        const volumeChange = -((y + 0.5) / height) * 100;
+        const rgb = getBivariateColor(areaChange, volumeChange);
+
+        const index = (y * width + x) * 4;
+        data[index] = rgb.r;
+        data[index + 1] = rgb.g;
+        data[index + 2] = rgb.b;
+        data[index + 3] = 255;
       }
     }
-    
-    // Leave first two rows (y=0, y=1) and first two columns (x=0, x=1) as cleared/transparent
-    // They will show as white/background color
-    
-    // Put the complete image data onto the canvas in one operation
-    ctx.putImageData(imageData, 0, 0)
-  } finally {
-    isDrawing = false
-  }
-}
 
-// Handle visualization change
-const handleVisualizationChange = (mode) => {
-  // Close dropdown immediately
-  showVisualizationDropdown.value = false
-  
-  if (props.currentVisualization === mode) {
-    return // Already in this mode
+    ctx.putImageData(imageData, 0, 0);
+  } finally {
+    isDrawing = false;
   }
-  
-  emit('visualization-change', mode)
-  
-  // Redraw bivariate legend if switching to bivariate mode
+};
+
+const handleVisualizationChange = (mode) => {
+  showVisualizationDropdown.value = false;
+
+  if (props.currentVisualization === mode) {
+    return;
+  }
+
+  emit('visualization-change', mode);
+
   if (mode === 'bivariate' && props.currentMode === 'default') {
     nextTick(() => {
       if (bivariateCanvas.value) {
-        drawBivariateLegend()
+        drawBivariateLegend();
       } else {
-        // Canvas not ready, try again after a short delay
         setTimeout(() => {
           if (bivariateCanvas.value) {
-            drawBivariateLegend()
+            drawBivariateLegend();
           }
-        }, 100)
+        }, 100);
       }
-    })
+    });
   }
-}
+};
 
-// Close dropdown when clicking outside
 const handleClickOutside = (event) => {
   if (!event.target.closest('.legend-container')) {
-    showVisualizationDropdown.value = false
+    showVisualizationDropdown.value = false;
   }
-}
+};
 
-// Setup click outside handler for dropdown
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-  
-  // Draw bivariate legend if in bivariate mode
+  document.addEventListener('click', handleClickOutside);
+
   if (props.currentVisualization === 'bivariate') {
     nextTick(() => {
-      drawBivariateLegend()
-    })
+      drawBivariateLegend();
+    });
   }
-})
+});
 
-// Watch for visualization changes to redraw legend
-watch(() => props.currentVisualization, (newVal) => {
-  if (newVal === 'bivariate' && props.currentMode === 'default') {
-    nextTick(() => {
-      // Ensure canvas is available before drawing
-      if (bivariateCanvas.value) {
-        drawBivariateLegend()
-      }
-    })
-  }
-})
-
-// Watch for mode changes to redraw bivariate legend when switching to default mode
-watch(() => props.currentMode, (newMode) => {
-  if (newMode === 'default' && props.currentVisualization === 'bivariate') {
-    nextTick(() => {
-      // Use a small delay to ensure canvas is rendered
-      setTimeout(() => {
+watch(
+  () => props.currentVisualization,
+  (newVal) => {
+    if (newVal === 'bivariate' && props.currentMode === 'default') {
+      nextTick(() => {
         if (bivariateCanvas.value) {
-          drawBivariateLegend()
+          drawBivariateLegend();
         }
-      }, 50)
-    })
+      });
+    }
   }
-})
+);
 
-// Cleanup on unmount
+watch(
+  () => props.currentMode,
+  (newMode) => {
+    if (newMode === 'default' && props.currentVisualization === 'bivariate') {
+      nextTick(() => {
+        setTimeout(() => {
+          if (bivariateCanvas.value) {
+            drawBivariateLegend();
+          }
+        }, 50);
+      });
+    }
+  }
+);
+
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <style scoped>
@@ -490,7 +536,6 @@ onBeforeUnmount(() => {
   width: 240px;
 }
 
-/* Default mode dropdown */
 .legend-dropdown-wrapper {
   position: relative;
   display: flex;
@@ -524,7 +569,7 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   width: 100%;
   min-width: 140px;
-  background: #FFFFFF;
+  background: #ffffff;
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   cursor: pointer;
@@ -590,7 +635,6 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-/* Overlay mode legend */
 .overlay-legend-content {
   display: flex;
   flex-direction: column;
@@ -676,7 +720,6 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 
-/* Comparison mode legend */
 .comparison-legend-content {
   display: flex;
   flex-direction: column;
@@ -736,10 +779,11 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 
-/* Dropdown transitions */
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .dropdown-enter-from,
@@ -757,6 +801,18 @@ onBeforeUnmount(() => {
 .legend-bivariate {
   display: flex;
   flex-direction: column;
+}
+
+.legend-bivariate-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.legend-bivariate-canvas-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .legend-bivariate-canvas {
@@ -830,7 +886,6 @@ onBeforeUnmount(() => {
   color: #666;
 }
 
-/* Gradient legend for area/volume change */
 .legend-gradient-content {
   margin-top: 0px;
   width: 100%;
@@ -875,5 +930,3 @@ onBeforeUnmount(() => {
   color: #666;
 }
 </style>
-
-
