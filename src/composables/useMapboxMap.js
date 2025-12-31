@@ -6,7 +6,7 @@ import { lightStyle } from '../config/mapStyles.js';
 
 /**
  * Composable for initializing and managing a Mapbox GL map instance.
- * Handles map initialization, logo/attribution removal, and initial fly-in animation.
+ * Handles map initialization and initial fly-in animation.
  *
  * @param {Ref<HTMLElement>} mapboxCanvas - The canvas element ref for the map container
  * @returns {Object} Map instance, loaded state, and initialization function
@@ -14,7 +14,7 @@ import { lightStyle } from '../config/mapStyles.js';
 export function useMapboxMap(mapboxCanvas) {
   const map = ref(null);
   const mapLoaded = ref(false);
-  let logoObserver = null;
+  let controlPanelObserver = null;
 
   const initializeMap = () => {
     if (!mapboxCanvas.value) {
@@ -37,65 +37,79 @@ export function useMapboxMap(mapboxCanvas) {
       map.value = new mapboxgl.Map({
         container: mapboxCanvas.value,
         style: lightStyle,
-        center: [8.5143, 46.3803], // Center of Switzerland
+        center: [8.5143, 46.3803],
         zoom: 0,
         projection: 'globe',
         accessToken: MAPBOX_TOKEN,
-        attributionControl: false, // Attribution shown in imprint modal instead
+        attributionControl: false,
       });
 
       map.value.on('load', () => {
-        // Ensure globe projection is set (in case it wasn't applied during initialization)
         map.value.setProjection('globe');
 
-        const attributionElements = mapboxCanvas.value.querySelectorAll(
-          '.mapboxgl-ctrl-attrib'
+        // Add attribution control in top-right (compact mode)
+        map.value.addControl(
+          new mapboxgl.AttributionControl({ compact: true }),
+          'top-right'
         );
-        attributionElements.forEach((el) => el.remove());
 
-        // Remove Mapbox logo watermark (may appear in bottom right or bottom left)
-        const logoElements = mapboxCanvas.value.querySelectorAll(
-          '.mapboxgl-ctrl-logo'
-        );
-        logoElements.forEach((el) => el.remove());
+        // Setup logo positioning and padding
+        const setupLogo = () => {
+          const bottomRightContainer = mapboxCanvas.value?.querySelector('.mapboxgl-ctrl-bottom-right');
+          const bottomLeftContainer = mapboxCanvas.value?.querySelector('.mapboxgl-ctrl-bottom-left');
+          const controlPanel = document.querySelector('.control-panel-container');
+          
+          if (!bottomRightContainer) return;
 
-        const parentContainer = mapboxCanvas.value.parentElement;
-        if (parentContainer) {
-          const parentLogoElements = parentContainer.querySelectorAll(
-            '.mapboxgl-ctrl-logo'
-          );
-          parentLogoElements.forEach((el) => el.remove());
-        }
-
-        // Use MutationObserver to remove logo if it appears later
-        logoObserver = new MutationObserver(() => {
-          const logos = mapboxCanvas.value.querySelectorAll(
-            '.mapboxgl-ctrl-logo'
-          );
-          logos.forEach((el) => el.remove());
-          if (parentContainer) {
-            const parentLogos = parentContainer.querySelectorAll(
-              '.mapboxgl-ctrl-logo'
-            );
-            parentLogos.forEach((el) => el.remove());
+          // Move logo from bottom-left to bottom-right if needed
+          const logoInLeft = bottomLeftContainer?.querySelector('.mapboxgl-ctrl-logo');
+          if (logoInLeft) {
+            const logoControl = logoInLeft.closest('.mapboxgl-ctrl');
+            if (logoControl?.parentElement === bottomLeftContainer) {
+              bottomRightContainer.appendChild(logoControl);
+            }
           }
-        });
-        logoObserver.observe(mapboxCanvas.value, {
-          childList: true,
-          subtree: true,
-        });
-        if (parentContainer) {
-          logoObserver.observe(parentContainer, {
-            childList: true,
-            subtree: true,
-          });
-        }
+
+          // Update padding based on control panel state
+          const logoInRight = bottomRightContainer.querySelector('.mapboxgl-ctrl-logo');
+          if (logoInRight && controlPanel) {
+            const isExpanded = controlPanel.querySelector('.evolution-graph-wrapper') !== null;
+            bottomRightContainer.style.paddingBottom = isExpanded ? '241px' : '77px';
+          }
+
+          // Hide attribution text in top-right (keep only logo)
+          const topRightContainer = mapboxCanvas.value?.querySelector('.mapboxgl-ctrl-top-right');
+          const attributionText = topRightContainer?.querySelector('.mapboxgl-ctrl-attrib');
+          if (attributionText) {
+            attributionText.style.display = 'none';
+          }
+        };
+
+        // Initial setup after a short delay to ensure DOM is ready
+        setTimeout(setupLogo, 100);
+
+        // Watch for control panel changes
+        const setupObserver = () => {
+          const controlPanel = document.querySelector('.control-panel-container');
+          if (controlPanel) {
+            controlPanelObserver = new MutationObserver(setupLogo);
+            controlPanelObserver.observe(controlPanel, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+            });
+          } else {
+            setTimeout(setupObserver, 200);
+          }
+        };
+
+        setupObserver();
 
         map.value.flyTo({
-          center: [8.5143, 46.3803], // Center of Switzerland
+          center: [8.5143, 46.3803],
           zoom: 8,
           duration: 3000,
-          essential: true, // Animation is essential and won't be interrupted
+          essential: true,
         });
         mapLoaded.value = true;
       });
@@ -109,9 +123,9 @@ export function useMapboxMap(mapboxCanvas) {
   };
 
   onBeforeUnmount(() => {
-    if (logoObserver) {
-      logoObserver.disconnect();
-      logoObserver = null;
+    if (controlPanelObserver) {
+      controlPanelObserver.disconnect();
+      controlPanelObserver = null;
     }
     if (map.value) {
       map.value.remove();
