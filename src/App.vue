@@ -3,22 +3,23 @@
 </template>
 
 <script setup>
-import Map from "./components/Map.vue";
+import Map from './components/Map.vue';
 
-// Force full page reload when App.vue changes (dev only)
-import.meta.hot?.on("vite:beforeUpdate", (e) => {
-  if (e.updates.some(({ path }) => path === "/src/App.vue"))
-    location.reload();
+import.meta.hot?.on('vite:beforeUpdate', (e) => {
+  if (e.updates.some(({ path }) => path === '/src/App.vue')) location.reload();
 });
 </script>
 
 <style>
 /* Reset default browser styles */
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
 }
 
 #app {
@@ -29,10 +30,5 @@ body, html {
   left: 0;
   width: 100%;
   height: 100%;
-}
-
-/* Hide Mapbox logo watermark */
-.mapboxgl-ctrl-logo {
-  display: none !important;
 }
 </style>
