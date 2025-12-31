@@ -155,6 +155,7 @@ const getThumbYearStyle = () => {
   align-items: center;
   gap: 16px;
   flex: 1;
+  margin-top: 4px;
 }
 
 .play-button {
@@ -202,6 +203,7 @@ const getThumbYearStyle = () => {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  margin-right: 6px;
 }
 
 .time-slider {

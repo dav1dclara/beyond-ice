@@ -1,5 +1,5 @@
 <template>
-  <div class="projection-controls-container">
+  <div class="control-panel-container">
     <ModeScenarioControls
       :selected-projection="selectedProjection"
       @mode-change="handleModeChange"
@@ -48,7 +48,8 @@
 
 <script setup>
 import { ref } from 'vue';
-import { SCENARIO_CONFIG } from '../config/scenarios.js';
+import { YEAR_CONFIG } from '../config/years.js';
+import { SCENARIO_DEFAULTS } from '../config/scenarios.js';
 import TimeSlider from './TimeSlider.vue';
 import EvolutionGraph from './EvolutionGraph.vue';
 import ModeScenarioControls from './ModeScenarioControls.vue';
@@ -56,19 +57,19 @@ import ModeScenarioControls from './ModeScenarioControls.vue';
 defineProps({
   currentYear: {
     type: Number,
-    default: SCENARIO_CONFIG.DEFAULT_YEAR,
+    default: YEAR_CONFIG.DEFAULT_YEAR,
   },
   minYear: {
     type: Number,
-    default: SCENARIO_CONFIG.MIN_YEAR,
+    default: YEAR_CONFIG.MIN_YEAR,
   },
   maxYear: {
     type: Number,
-    default: SCENARIO_CONFIG.MAX_YEAR,
+    default: YEAR_CONFIG.MAX_YEAR,
   },
   step: {
     type: Number,
-    default: SCENARIO_CONFIG.YEAR_STEP,
+    default: YEAR_CONFIG.YEAR_STEP,
   },
   selectedProjection: {
     type: String,
@@ -92,11 +93,11 @@ defineProps({
   },
   referenceScenario: {
     type: String,
-    default: SCENARIO_CONFIG.DEFAULT_REFERENCE_SCENARIO,
+    default: SCENARIO_DEFAULTS.DEFAULT_REFERENCE_SCENARIO,
   },
   comparisonScenario: {
     type: String,
-    default: SCENARIO_CONFIG.DEFAULT_COMPARISON_SCENARIO,
+    default: SCENARIO_DEFAULTS.DEFAULT_COMPARISON_SCENARIO,
   },
 });
 
@@ -142,7 +143,7 @@ const handleComparisonScenarioChange = (scenario) => {
 </script>
 
 <style scoped>
-.projection-controls-container {
+.control-panel-container {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -203,6 +204,7 @@ const handleComparisonScenarioChange = (scenario) => {
 
 .evolution-graph-wrapper {
   margin-bottom: 4px;
+  padding-right: 6px;
 }
 
 .graph-toggle-icon {

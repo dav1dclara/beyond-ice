@@ -250,6 +250,8 @@ const handleClear = () => {
   max-height: 200px;
   overflow-y: auto;
   z-index: 3;
+  scrollbar-width: thin;
+  scrollbar-color: #f0f0f0 transparent;
 }
 
 .search-results-dropdown::-webkit-scrollbar {
@@ -267,11 +269,6 @@ const handleClear = () => {
 
 .search-results-dropdown::-webkit-scrollbar-thumb:hover {
   background: #e0e0e0;
-}
-
-.search-results-dropdown {
-  scrollbar-width: thin;
-  scrollbar-color: #f0f0f0 transparent;
 }
 
 .search-result-item {

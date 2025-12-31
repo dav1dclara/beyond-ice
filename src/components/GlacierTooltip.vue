@@ -18,7 +18,7 @@
           <span class="tooltip-value">
             {{ getAreaValue.toFixed(2) }} km²
             <span v-if="areaChange != null" class="tooltip-change">
-              ({{ areaChange.toFixed(1) }}% since 2020)
+              ({{ areaChange.toFixed(1) }}% since {{ YEAR_CONFIG.MIN_YEAR }})
             </span>
           </span>
         </div>
@@ -27,7 +27,7 @@
           <span class="tooltip-value">
             {{ getVolumeValue.toFixed(2) }} km³
             <span v-if="volumeChange != null" class="tooltip-change">
-              ({{ volumeChange.toFixed(1) }}% since 2020)
+              ({{ volumeChange.toFixed(1) }}% since {{ YEAR_CONFIG.MIN_YEAR }})
             </span>
           </span>
         </div>
@@ -38,6 +38,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { YEAR_CONFIG } from '../config/years.js';
 
 const props = defineProps({
   tooltip: {

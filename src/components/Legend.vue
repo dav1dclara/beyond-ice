@@ -69,7 +69,7 @@
         "
         class="legend-gradient-content"
       >
-        <div class="legend-since-label">since 2020</div>
+        <div class="legend-since-label">since {{ YEAR_CONFIG.MIN_YEAR }}</div>
         <div class="legend-gradient-bar-horizontal">
           <div
             class="legend-gradient-horizontal"
@@ -88,7 +88,7 @@
         class="legend-bivariate"
         style="--canvas-size: 160px"
       >
-        <div class="legend-since-label">since 2020</div>
+        <div class="legend-since-label">since {{ YEAR_CONFIG.MIN_YEAR }}</div>
         <div class="legend-bivariate-wrapper">
           <div>
             <div class="legend-bivariate-canvas-wrapper">
@@ -297,7 +297,8 @@ import {
   nextTick,
   watch,
 } from 'vue';
-import { SCENARIO_CONFIG } from '../config/scenarios.js';
+import { YEAR_CONFIG } from '../config/years.js';
+import { SCENARIO_DEFAULTS } from '../config/scenarios.js';
 import { getBivariateColor } from '../utils/bivariateColor.js';
 
 const props = defineProps({
@@ -315,19 +316,19 @@ const props = defineProps({
   },
   minYear: {
     type: Number,
-    default: SCENARIO_CONFIG.MIN_YEAR,
+    default: YEAR_CONFIG.MIN_YEAR,
   },
   maxYear: {
     type: Number,
-    default: SCENARIO_CONFIG.MAX_YEAR,
+    default: YEAR_CONFIG.MAX_YEAR,
   },
   referenceScenario: {
     type: String,
-    default: SCENARIO_CONFIG.DEFAULT_REFERENCE_SCENARIO,
+    default: SCENARIO_DEFAULTS.DEFAULT_REFERENCE_SCENARIO,
   },
   comparisonScenario: {
     type: String,
-    default: SCENARIO_CONFIG.DEFAULT_COMPARISON_SCENARIO,
+    default: SCENARIO_DEFAULTS.DEFAULT_COMPARISON_SCENARIO,
   },
   visibleScenarios: {
     type: Set,
