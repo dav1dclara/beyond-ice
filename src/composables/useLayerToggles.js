@@ -82,4 +82,3 @@ export function useLayerToggles(
     toggleScenario,
   };
 }
-

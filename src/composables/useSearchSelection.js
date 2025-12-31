@@ -56,14 +56,18 @@ export function useSearchSelection(
 
     const sourceId = getSourceId(projection.value);
     if (!sourceId || !map.value) {
-      console.warn('[useSearchSelection] Cannot select glacier: source not available');
+      console.warn(
+        '[useSearchSelection] Cannot select glacier: source not available'
+      );
       return;
     }
 
     try {
       const source = map.value.getSource(sourceId);
       if (!source || source.type !== 'vector') {
-        console.warn('[useSearchSelection] Source not available or not a vector source');
+        console.warn(
+          '[useSearchSelection] Source not available or not a vector source'
+        );
         return;
       }
 
@@ -192,7 +196,10 @@ export function useSearchSelection(
             await zoomToBounds(bounds, mapboxId);
           }
         } catch (error) {
-          console.warn('[useSearchSelection] Could not zoom to glacier:', error);
+          console.warn(
+            '[useSearchSelection] Could not zoom to glacier:',
+            error
+          );
         }
       }
     } catch (error) {
@@ -204,4 +211,3 @@ export function useSearchSelection(
     handleGlacierSelect,
   };
 }
-
