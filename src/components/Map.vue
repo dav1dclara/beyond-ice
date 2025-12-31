@@ -66,7 +66,7 @@
       @comparison-scenario-change="handleComparisonScenarioChange"
     />
 
-    <GlacierTooltip ref="tooltipElement" :tooltip="tooltip" />
+    <GlacierTooltip ref="tooltipElement" :tooltip="tooltip" :current-year="currentYear" />
   </div>
 </template>
 
