@@ -5,7 +5,6 @@
         <button
           @click="$emit('zoom-to-glacier')"
           class="zoom-to-glacier-button"
-          title="Zoom to glacier extent"
         >
           Zoom to glacier
         </button>
@@ -41,7 +40,6 @@
         v-if="modelValue"
         @click="handleClear"
         class="clear-button"
-        title="Clear search"
       >
         <svg
           width="16"
