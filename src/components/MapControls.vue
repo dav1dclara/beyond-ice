@@ -3,7 +3,6 @@
     <button
       @click="$emit('zoom-to-extent')"
       class="control-button"
-      title="Zoom to full extent of data"
     >
       <svg
         width="18"
@@ -24,7 +23,6 @@
     <button
       @click="$emit('reset-bearing')"
       class="control-button"
-      title="Reset map to north"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
         <polygon points="12 2 6 10 18 10" fill="#333"></polygon>
@@ -35,7 +33,6 @@
       @click="$emit('toggle-terrain')"
       class="control-button"
       :class="{ 'is-3d': is3D }"
-      :title="is3D ? 'Switch to 2D view' : 'Switch to 3D view'"
     >
       {{ is3D ? '2D' : '3D' }}
     </button>
@@ -44,7 +41,6 @@
         @click="$emit('toggle-basemap', false)"
         :class="{ active: !isSatellite }"
         class="basemap-toggle-button"
-        title="Light map"
       >
         Light
       </button>
@@ -52,7 +48,6 @@
         @click="$emit('toggle-basemap', true)"
         :class="{ active: isSatellite }"
         class="basemap-toggle-button"
-        title="Aerial map"
       >
         Aerial
       </button>

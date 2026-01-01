@@ -5,7 +5,6 @@
       class="play-button"
       :class="{ disabled: disabled }"
       :disabled="disabled"
-      :title="isPlaying ? 'Pause animation' : 'Play animation'"
     >
       <svg
         v-if="!isPlaying"

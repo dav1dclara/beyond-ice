@@ -132,7 +132,6 @@
           <button
             @click="handleToggleYear(year)"
             class="overlay-legend-year-toggle-button"
-            :title="visibleYearsSet.has(year) ? 'Hide' : 'Show'"
           >
             <svg
               v-if="visibleYearsSet.has(year)"
@@ -176,7 +175,6 @@
         <button
           @click="handleToggleAllYears"
           class="overlay-legend-toggle-all-button"
-          :title="allYearsVisible ? 'Hide all' : 'Show all'"
         >
           {{ allYearsVisible ? 'Hide all' : 'Show all' }}
         </button>
@@ -194,7 +192,6 @@
           <button
             @click="handleToggleScenario('reference')"
             class="comparison-legend-year-toggle-button"
-            :title="visibleScenariosSet.has('reference') ? 'Hide' : 'Show'"
           >
             <svg
               v-if="visibleScenariosSet.has('reference')"
@@ -242,7 +239,6 @@
           <button
             @click="handleToggleScenario('comparison')"
             class="comparison-legend-year-toggle-button"
-            :title="visibleScenariosSet.has('comparison') ? 'Hide' : 'Show'"
           >
             <svg
               v-if="visibleScenariosSet.has('comparison')"
