@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 ### Data Sources
 
-The future glacier extents and the SGI 2016 extents must be stored inside `data/raw` to run the scripts in `data-processing`. SGI 2016 extents (`data/raw/sgi2016`) are available at [GLAMOS](https://doi.glamos.ch/data/inventory/inventory_sgi2016_r2020.html). Future glacier extents (`data/raw/future_extents`) were are available at [polybox](https://polybox.ethz.ch/index.php/s/4D6DiFPF3XzCnHZ).
+The future glacier extents and the SGI 2016 extents must be stored inside `data/raw` to run the scripts in `data-processing`. SGI 2016 extents (`data/raw/sgi2016`) are available at [GLAMOS](https://doi.glamos.ch/data/inventory/inventory_sgi2016_r2020.html). Future glacier extents (`data/raw/future_extents`) are available at [polybox](https://polybox.ethz.ch/index.php/s/4D6DiFPF3XzCnHZ).
 
 ### Scripts
 
