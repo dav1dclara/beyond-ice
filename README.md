@@ -1,6 +1,9 @@
 # BEYOND ICE
 
-BEYOND ICE is an interactive cartographic web application that visualizes projected future extents of all Swiss glaciers until the end of the 21st century under different climate scenarios. The main purpose of this project is to make scientifically derived glacier projections accessible to a broad audience through an intuitive, map-based interface.
+BEYOND ICE is an interactive cartographic web application that visualizes projected future extents of all Swiss glaciers until the end of the 21st century (2020–2100) under different climate scenarios. Results are based on GLAMOS data and glaciological modelling of glacier retreat. The main purpose of this platform is to make scientifically derived glacier projections accessible to a broad audience through an intuitive, map-based interface.
+
+> [!NOTE]
+> **Live application:** [https://doi.glamos.ch/scenarios/](https://doi.glamos.ch/scenarios/)
 
 ## Data Processing
 

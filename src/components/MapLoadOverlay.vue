@@ -1,6 +1,9 @@
 <template>
   <div class="map-load-overlay">
     <div class="content">
+      <a href="https://www.glamos.ch/" target="_blank" rel="noopener noreferrer" class="glamos-logo-link">
+        <img src="/00_Logo_GLAMOS-04.png" alt="GLAMOS Logo" class="glamos-logo" />
+      </a>
       <div class="title-group">
         <h1 class="title">BEYOND ICE</h1>
         <p class="subtitle">Exploring the Future of Swiss Glaciers in 3D</p>
@@ -41,6 +44,25 @@ defineEmits(['load']);
   flex-direction: column;
   align-items: center;
   gap: 4px;
+}
+
+.glamos-logo-link {
+  display: block;
+  width: 250px;
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.glamos-logo-link:hover {
+  transform: scale(1.08);
+}
+
+.glamos-logo {
+  display: block;
+  height: auto;
+  width: 250px;
+  object-fit: contain;
 }
 
 .title {

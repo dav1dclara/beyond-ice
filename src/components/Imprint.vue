@@ -48,33 +48,43 @@
           <div class="section">
             <h2>About</h2>
             <p class="section-text">
-              BEYOND ICE is an interactive cartographic web application that
-              visualizes projected future extents of all Swiss glaciers until
-              the end of the 21st century (2020–2100) under different climate
-              scenarios. The main purpose of this project is to make
-              scientifically derived glacier projections accessible to a broad
-              audience through an intuitive, map-based interface.
+              BEYOND ICE is an interactive cartographic web application that 
+              visualizes projected future extents of all Swiss glaciers until 
+              the end of the 21st century (2020–2100) under different climate 
+              scenarios. Results are based on GLAMOS data and glaciological 
+              modelling of glacier retreat. The main purpose of this platform 
+              is to make scientifically derived glacier projections accessible 
+              to a broad audience through an intuitive, map-based interface.
             </p>
           </div>
 
           <div class="section">
             <h2>Attributions</h2>
             <p class="section-text">
-              Data: Glacier projections computed with GERM (<a
-                href="https://doi.org/10.1002/hyp.7055"
+              <span class="label">Data:</span> Glacier projections computed with the Global Glacier Evolution Model (<a
+                href="https://doi.org/10.3389/feart.2015.00054"
                 target="_blank"
                 rel="noopener noreferrer"
-                >Huss et al., 2008</a
-              >), provided by
-              <a
-                href="https://vaw.ethz.ch/"
+                >Huss and Hock, 2015</a
+              >; <a
+                href="https://doi.org/10.5281/zenodo.14866776"
                 target="_blank"
                 rel="noopener noreferrer"
-                >VAW</a
-              >
+                >Huss et al., 2025</a
+              >) using IPCC low- to high-emission climate scenarios (SSP126 to SSP585) and <a
+                href="https://www.glamos.ch"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GLAMOS</a
+              > / <a
+                href="https://vaw.ethz.ch/forschung/glaziologie.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                >VAW ETH ZURICH</a
+              > data on glacier extent, thickness and mass balance.
             </p>
             <p class="section-text">
-              Basemap: ©
+              <span class="label">Basemaps:</span> ©
               <a
                 href="https://www.mapbox.com/about/maps"
                 target="_blank"
@@ -101,14 +111,38 @@
           <div class="section">
             <h2>Credits</h2>
             <p class="section-text">
-              This application was created by David Clara for the course
+              This application was created by 
+              <a
+                href="https://github.com/dav1dclara"
+                target="_blank"
+                rel="noopener noreferrer"
+                >David Clara</a
+              > for the course
               <a
                 href="https://karto.ethz.ch/en/education/courses/master/application-development-cartography.html"
                 target="_blank"
                 rel="noopener noreferrer"
                 >Application Development in Cartography</a
               >
-              at ETH Zurich during the winter semester 2025/2026.
+              at ETH Zurich during the winter semester 2025/2026. Glacier projections were provided by 
+              <a
+                href="https://vaw.ethz.ch/personen/person-detail.m-huss.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Matthias Huss</a
+              >, 
+              <a
+                href="https://vaw.ethz.ch/forschung/glaziologie.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                >VAW ETH ZURICH</a
+              >, and
+              <a
+                href="https://www.glamos.ch"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GLAMOS</a
+              >.              
             </p>
           </div>
         </div>
@@ -190,7 +224,7 @@ const showModal = ref(false);
   background: white;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  max-width: 620px;
+  max-width: 650px;
   width: 90%;
   max-height: 85vh;
   overflow-y: auto;
@@ -224,7 +258,7 @@ const showModal = ref(false);
   margin: 0;
   font-size: 18px;
   font-weight: 400;
-  color: #666;
+  color: #444;
   letter-spacing: 0.5px;
 }
 
@@ -279,8 +313,12 @@ const showModal = ref(false);
 .section-text {
   margin: 0;
   font-size: 14px;
-  color: #666;
+  color: #444;
   line-height: 1.6;
+}
+
+.section-text .label {
+  font-weight: 500;
 }
 
 .section a {
