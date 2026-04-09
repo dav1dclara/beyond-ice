@@ -1,9 +1,11 @@
 # BEYOND ICE
 
+## About 
+
 BEYOND ICE is an interactive cartographic web application that visualizes projected future extents of all Swiss glaciers until the end of the 21st century (2020–2100) under different climate scenarios. Results are based on GLAMOS data and glaciological modelling of glacier retreat. The main purpose of this platform is to make scientifically derived glacier projections accessible to a broad audience through an intuitive, map-based interface.
 
 > [!NOTE]
-> **Live application:** [https://doi.glamos.ch/scenarios/](https://doi.glamos.ch/scenarios/)
+> **BEYOND ICE is live on the GLAMOS website:** [https://doi.glamos.ch/scenarios/](https://doi.glamos.ch/scenarios/)
 
 ## Data Processing
 
@@ -117,14 +119,12 @@ The codebase is split into components and composables. Components define the use
 - `scenarios.js` - Climate scenario definitions
 - `csvPaths.js` - CSV file path utilities
 
-## Data Attribution
+## Attributions
 
-Glacier projection data was computed with GERM ([Huss et al., 2008](https://doi.org/10.1002/hyp.7055)) and provided by [VAW](https://vaw.ethz.ch/). The basemap data is provided by [Mapbox](https://www.mapbox.com/about/maps), [OpenStreetMap](https://www.openstreetmap.org/copyright), and [Swisstopo](https://www.swisstopo.admin.ch/).
+**Data:** Glacier projections computed with the Global Glacier Evolution Model ([Huss and Hock, 2015](https://doi.org/10.3389/feart.2015.00054); [Huss et al., 2025](https://doi.org/10.5281/zenodo.14866776)) using IPCC low- to high-emission climate scenarios (SSP126 to SSP585) and [GLAMOS](https://www.glamos.ch) / [VAW ETH ZURICH](https://vaw.ethz.ch/forschung/glaziologie.html) data on glacier extent, thickness and mass balance.
 
-## AI Assistance
-
-[Cursor](https://cursor.com/) was used as a development aid throughout this project. It was primarily employed to explore implementation ideas, prototype alternative approaches, and support the overall development process. AI-assisted code suggestions were carefully reviewed, adapted, and integrated manually. In later stages, Cursor was used for refactoring, improving code readability and writing documentation. Architectural decisions, core logic, data processing pipeline, and scientific interpretations were designed, validated and finalized by the author. 
+**Basemaps:** © [Mapbox](https://www.mapbox.com/about/maps) © [OpenStreetMap](https://www.openstreetmap.org/copyright) © [Swisstopo](https://www.swisstopo.admin.ch/)
 
 ## Credits
 
-This application was created by David Clara for the course [Application Development in Cartography](https://karto.ethz.ch/en/education/courses/master/application-development-cartography.html) at ETH Zurich during the winter semester 2025/2026.
+This application was created by [David Clara](https://github.com/dav1dclara) for the course [Application Development in Cartography](https://karto.ethz.ch/en/education/courses/master/application-development-cartography.html) at ETH Zurich during the winter semester 2025/2026. Glacier projections were provided by [Matthias Huss](https://vaw.ethz.ch/personen/person-detail.m-huss.html), [VAW ETH ZURICH](https://vaw.ethz.ch/forschung/glaziologie.html), and [GLAMOS](https://www.glamos.ch).
